@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Mail, Lock, User, Heart, ArrowRight, ChevronLeft } from 'lucide-react';
+import { supabase } from '../supabaseClient';
 
 interface AuthScreenProps {
   onLogin: (email: string, name?: string) => void;
@@ -13,11 +14,41 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [name, setName] = useState('');
   const [partnerEmail, setPartnerEmail] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onLogin(email, isLogin ? undefined : name);
-  };
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+    if (isLogin) {
+    // LOGIN
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
+    if (error) {
+      alert('Erro ao entrar: ' + error.message);
+    } else {
+      onLogin(email); // você pode buscar mais dados depois
+    }
+  } else {
+    // SIGN UP
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+          partner_email: partnerEmail || null,
+        },
+      },
+    });
+
+    if (error) {
+      alert('Erro ao criar conta: ' + error.message);
+    } else {
+      alert('Conta criada! Verifique seu e-mail para confirmar.');
+      setIsLogin(true);
+    }
+  }
+};
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative overflow-hidden">
       {/* Decorative Background */}
