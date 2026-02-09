@@ -1,0 +1,7 @@
+{
+  "name": "Fincompar - Finanças em Casal",
+  "description": "Um aplicativo financeiro colaborativo para casais gerenciarem saldo, gastos, metas e educação financeira juntos.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
