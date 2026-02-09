@@ -1,16 +1,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Transaction, Goal, User, EducationalContent, Category } from './types';
-import Layout from './components/Layout';
-import AuthScreen from './screens/AuthScreen';
+import { Transaction, Goal, User, EducationalContent, Category } from '../types';
+import Layout from '../components/Layout';
+import AuthScreen from '../screens/AuthScreen';
 import { 
   TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText, 
   ChevronRight, X, UserPlus, Heart, Plus, Target, 
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut, 
   Settings, Bell, CreditCard, Sparkles
 } from 'lucide-react';
-import { getFinancialSummary, generateAudioTip } from './services/geminiService';
-import { CATEGORIES } from './constants';
+import { getFinancialSummary, generateAudioTip } from '../services/geminiService';
+import { CATEGORIES } from '../constants';
 
 const INITIAL_USER: User = {
   id: 'user_1',
@@ -471,9 +471,14 @@ const App: React.FC = () => {
     }
   };
 
+  // if (!isAuthenticated) {
+  //   return <AuthScreen onLogin={handleLogin} />;
+  // }
+
   if (!isAuthenticated) {
-    return <AuthScreen onLogin={handleLogin} />;
-  }
+  return <div style={{ padding: 40, fontSize: 24 }}>Tela de login aqui</div>;
+}
+
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} title="Fincompar">
