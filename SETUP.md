@@ -8,16 +8,24 @@
 
 ## Configuração das Variáveis de Ambiente
 
-1. Renomeie o arquivo `.env.local` ou crie um novo com as seguintes variáveis:
+1. Copie o arquivo `.env.example` para `.env.local`:
+
+```bash
+cp .env.example .env.local
+```
+
+2. Edite o `.env.local` com suas chaves:
 
 ```env
 # Google AI (Gemini)
-GEMINI_API_KEY=sua_chave_api_aqui
+VITE_GEMINI_API_KEY=sua_chave_api_aqui
 
 # Supabase
 VITE_SUPABASE_URL=https://npwasjczhjqcltdanegx.supabase.co
 VITE_SUPABASE_ANON_KEY=sua_chave_anonima_aqui
 ```
+
+**IMPORTANTE:** Todas as variáveis de ambiente devem começar com `VITE_` para serem acessíveis no código.
 
 2. **Obter Chave do Gemini:**
    - Acesse [Google AI Studio](https://makersuite.google.com/app/apikey)

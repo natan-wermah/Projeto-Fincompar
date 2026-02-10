@@ -4,6 +4,7 @@ import { Transaction, Goal, User, EducationalContent, Category, generateId, Noti
 import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
 import { NotificationContainer } from './components/Notification';
+import ConfigWarning from './components/ConfigWarning';
 import {
   TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText,
   ChevronRight, X, UserPlus, Heart, Plus, Target,
@@ -722,6 +723,7 @@ const App: React.FC = () => {
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} title="Fincompar">
       <NotificationContainer notifications={notifications} onClose={removeNotification} />
+      <ConfigWarning />
       {getActiveTabContent()}
 
       {showSummary && (
