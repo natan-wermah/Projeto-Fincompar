@@ -209,7 +209,20 @@ const App: React.FC = () => {
     };
 
     try {
-      const savedTransaction = await addTransactionDB(newTransaction);
+      let savedTransaction: Transaction | null = null;
+
+      // Demo mode: save locally only
+      if (user?.email === 'demo@fincompar.com') {
+        savedTransaction = {
+          ...newTransaction,
+          id: generateId(),
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        // Real mode: save to Supabase
+        savedTransaction = await addTransactionDB(newTransaction);
+      }
+
       if (savedTransaction) {
         setTransactions([savedTransaction, ...transactions]);
         setActiveTab('dashboard');
@@ -249,10 +262,18 @@ const App: React.FC = () => {
       updatedGoal.contributions[contributorId] = (updatedGoal.contributions[contributorId] || 0) + amount;
       updatedGoal.currentAmount += amount;
 
-      const savedGoal = await updateGoalDB(contributionGoal.id, {
-        currentAmount: updatedGoal.currentAmount,
-        contributions: updatedGoal.contributions,
-      });
+      let savedGoal: Goal | null = null;
+
+      // Demo mode: update locally only
+      if (user?.email === 'demo@fincompar.com') {
+        savedGoal = updatedGoal;
+      } else {
+        // Real mode: save to Supabase
+        savedGoal = await updateGoalDB(contributionGoal.id, {
+          currentAmount: updatedGoal.currentAmount,
+          contributions: updatedGoal.contributions,
+        });
+      }
 
       if (savedGoal) {
         setGoals((prev) =>
@@ -299,7 +320,20 @@ const App: React.FC = () => {
     };
 
     try {
-      const savedGoal = await addGoalDB(newGoal);
+      let savedGoal: Goal | null = null;
+
+      // Demo mode: save locally only
+      if (user?.email === 'demo@fincompar.com') {
+        savedGoal = {
+          ...newGoal,
+          id: generateId(),
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        // Real mode: save to Supabase
+        savedGoal = await addGoalDB(newGoal);
+      }
+
       if (savedGoal) {
         setGoals([savedGoal, ...goals]);
         setIsAddingGoal(false);
