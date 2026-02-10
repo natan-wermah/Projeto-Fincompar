@@ -19,7 +19,7 @@ export const getFinancialSummary = async (transactions: Transaction[], goals: Go
   // Return default message if AI is not initialized
   if (!ai) {
     console.warn('Gemini API key not configured');
-    return "Configure sua chave da API do Gemini para ver análises personalizadas!";
+    return "💡 Análise com IA indisponível. Para ativar resumos financeiros personalizados, obtenha uma chave API gratuita do Gemini em ai.google.dev e configure no Vercel como VITE_GEMINI_API_KEY. Suas finanças continuam sendo rastreadas normalmente!";
   }
 
   const prompt = `
