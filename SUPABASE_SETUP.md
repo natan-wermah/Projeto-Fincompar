@@ -2,18 +2,24 @@
 
 Este guia vai te ajudar a criar as tabelas necessárias no Supabase para o Fincompar funcionar corretamente.
 
-## ⚠️ Problema Atual
+## ⚠️ Erros Comuns
 
-Se você está vendo este erro:
+Se você está vendo erros como:
 ```
 Could not find the 'createdAt' column of 'transactions' in the schema cache
+Could not find the 'contributions' column of 'goals' in the schema cache
+Could not find the 'date' column of 'transactions' in the schema cache
 ```
 
-É porque as **tabelas ainda não foram criadas** no Supabase!
+É porque as **tabelas ainda não foram criadas corretamente** no Supabase!
+
+## 🚀 SOLUÇÃO RÁPIDA (Recomendado)
+
+Execute o arquivo **[setup-all-tables.sql](setup-all-tables.sql)** que cria TODAS as tabelas de uma vez!
 
 ---
 
-## 📋 Passo a Passo
+## 📋 Passo a Passo (SETUP COMPLETO)
 
 ### 1️⃣ Acessar o Supabase
 
@@ -28,9 +34,15 @@ Could not find the 'createdAt' column of 'transactions' in the schema cache
 
 ### 3️⃣ Copiar e Colar o SQL
 
-1. Abra o arquivo **[supabase-schema.sql](supabase-schema.sql)** deste repositório
+**OPÇÃO A - Setup Completo (Recomendado):**
+1. Abra o arquivo **[setup-all-tables.sql](setup-all-tables.sql)** deste repositório
 2. **Copie TODO o conteúdo** do arquivo
 3. **Cole** no SQL Editor do Supabase
+
+**OPÇÃO B - Corrigir tabela específica:**
+- Para corrigir apenas **transactions**: use [fix-transactions-table.sql](reset-transactions-table.sql)
+- Para corrigir apenas **goals**: use [fix-goals-table.sql](fix-goals-table.sql)
+- Para atualizar categorias: use [update-categories-constraint.sql](update-categories-constraint.sql)
 
 ### 4️⃣ Executar o SQL
 
