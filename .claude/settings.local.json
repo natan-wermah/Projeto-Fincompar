@@ -8,7 +8,10 @@
       "Bash(kill:*)",
       "Bash(pkill:*)",
       "WebFetch(domain:www.fincompar.com.br)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ]
   }
 }
