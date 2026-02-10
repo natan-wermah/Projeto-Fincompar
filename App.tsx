@@ -72,6 +72,9 @@ const App: React.FC = () => {
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -416,6 +419,165 @@ const App: React.FC = () => {
     source.start();
   };
 
+  // Filter transactions by period
+  const filterTransactionsByPeriod = () => {
+    const now = new Date();
+    let startDate: Date;
+    let endDate = now;
+
+    switch (periodFilter) {
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'custom':
+        if (!customStartDate || !customEndDate) return transactions;
+        startDate = new Date(customStartDate);
+        endDate = new Date(customEndDate);
+        break;
+      default:
+        return transactions;
+    }
+
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate >= startDate && transactionDate <= endDate;
+    });
+  };
+
+  const renderTransactions = () => {
+    const filteredTransactions = filterTransactionsByPeriod();
+
+    return (
+      <div className="space-y-6 animate-fadeIn pb-10">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-black text-gray-800">Histórico</h2>
+          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+            {filteredTransactions.length} transações
+          </p>
+        </div>
+
+        {/* Filtro de Período */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100 space-y-4">
+          <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Período</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setPeriodFilter('week')}
+              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                periodFilter === 'week'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Semanal
+            </button>
+            <button
+              onClick={() => setPeriodFilter('month')}
+              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                periodFilter === 'month'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Mensal
+            </button>
+            <button
+              onClick={() => setPeriodFilter('year')}
+              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                periodFilter === 'year'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Anual
+            </button>
+            <button
+              onClick={() => setPeriodFilter('custom')}
+              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                periodFilter === 'custom'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {/* Custom Date Range */}
+          {periodFilter === 'custom' && (
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div>
+                <label htmlFor="startDate" className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">
+                  Data Inicial
+                </label>
+                <input
+                  id="startDate"
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-full bg-gray-50 border-0 rounded-xl py-2 px-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="endDate" className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">
+                  Data Final
+                </label>
+                <input
+                  id="endDate"
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="w-full bg-gray-50 border-0 rounded-xl py-2 px-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Lista de Transações */}
+        <div className="space-y-3">
+          {filteredTransactions.length === 0 ? (
+            <div className="bg-white p-8 rounded-[2rem] text-center">
+              <p className="text-gray-400 font-bold">Nenhuma transação neste período</p>
+            </div>
+          ) : (
+            filteredTransactions.map(t => (
+              <div key={t.id} className="bg-white p-4 rounded-3xl flex items-center justify-between shadow-sm border border-gray-100">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
+                    t.type === 'income' ? 'bg-green-50' : 'bg-red-50'
+                  }`}>
+                    {(t.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).find(c => c.name === t.category)?.icon || '💰'}
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm">{t.description}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                      {t.category} • {new Date(t.date).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`font-black text-base ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                    {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                    {t.payerId === 'user_1' || t.payerId === 'demo-user-id' ? user.name.split(' ')[0] : partner.name.split(' ')[0]}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboard = () => (
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="bg-purple-600 rounded-[2rem] p-7 text-white shadow-2xl relative overflow-hidden">
@@ -428,11 +590,15 @@ const App: React.FC = () => {
         
         <div className="grid grid-cols-2 gap-3 mt-8">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-            <p className="text-[10px] uppercase font-black text-purple-100 mb-1 tracking-widest">Entradas</p>
+            <p className="text-[10px] uppercase font-black text-purple-100 mb-1 tracking-widest flex items-center gap-1">
+              Entradas <span className="text-sm">📈</span>
+            </p>
             <p className="font-bold text-lg text-green-300">R$ {totalIncome.toLocaleString('pt-BR')}</p>
           </div>
           <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
-            <p className="text-[10px] uppercase font-black text-purple-100 mb-1 tracking-widest">Saídas</p>
+            <p className="text-[10px] uppercase font-black text-purple-100 mb-1 tracking-widest flex items-center gap-1">
+              Saídas <span className="text-sm">📉</span>
+            </p>
             <p className="font-bold text-lg text-red-300">R$ {totalExpense.toLocaleString('pt-BR')}</p>
           </div>
         </div>
@@ -833,7 +999,7 @@ const App: React.FC = () => {
   const getActiveTabContent = () => {
     switch(activeTab) {
       case 'dashboard': return renderDashboard();
-      case 'transactions': return <div className="animate-fadeIn p-6 text-center font-bold text-gray-400">Em breve: Histórico completo</div>;
+      case 'transactions': return renderTransactions();
       case 'add': return renderAdd();
       case 'goals': return renderGoals();
       case 'profile': return renderProfile();
