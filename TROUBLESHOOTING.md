@@ -1,6 +1,22 @@
 # 🔧 Troubleshooting - Tela Branca na Vercel
 
-## ✅ Correções Aplicadas
+## 🎯 PROBLEMA PRINCIPAL RESOLVIDO: Tailwind via CDN
+
+**⚠️ CAUSA RAIZ DA TELA BRANCA:** O projeto estava usando Tailwind via CDN:
+```html
+<script src="https://cdn.tailwindcss.com"></script>
+```
+
+**Por que quebrava na Vercel:**
+- CDN lento/bloqueado → React renderiza sem estilos → Tela branca
+- Local funcionava (cache), Vercel não
+
+**✅ SOLUÇÃO APLICADA:**
+Instalado Tailwind como dependência (não CDN). Ver [PROBLEMA_RESOLVIDO.md](PROBLEMA_RESOLVIDO.md) para detalhes completos.
+
+---
+
+## ✅ Outras Correções Aplicadas
 
 O projeto agora está **protegido contra tela branca** mesmo com variáveis não configuradas:
 

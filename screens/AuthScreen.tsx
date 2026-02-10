@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, User, Heart, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Mail, Lock, User, Heart, ArrowRight, ChevronLeft, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Notification as NotificationType } from '../types';
 import { NotificationContainer } from '../components/Notification';
@@ -46,10 +46,15 @@ const handleSubmit = async (e: React.FormEvent) => {
       });
 
       if (error) {
-        addNotification('Erro ao entrar: ' + error.message, 'error');
+        // Tratamento especial para rate limit
+        if (error.message.includes('rate limit')) {
+          addNotification('⏱️ Muitas tentativas. Aguarde 1 hora ou use o Modo Demo abaixo.', 'warning');
+        } else {
+          addNotification('Erro ao entrar: ' + error.message, 'error');
+        }
       } else {
         addNotification('Login realizado com sucesso!', 'success');
-        onLogin(email);
+        onLogin(email, name);
       }
     } else {
       // SIGN UP
@@ -71,7 +76,12 @@ const handleSubmit = async (e: React.FormEvent) => {
       });
 
       if (error) {
-        addNotification('Erro ao criar conta: ' + error.message, 'error');
+        // Tratamento especial para rate limit
+        if (error.message.includes('rate limit')) {
+          addNotification('⏱️ Limite de cadastros atingido. Aguarde 1 hora ou use o Modo Demo.', 'warning');
+        } else {
+          addNotification('Erro ao criar conta: ' + error.message, 'error');
+        }
       } else {
         addNotification('Conta criada! Verifique seu e-mail para confirmar.', 'success');
         setIsLogin(true);
@@ -210,6 +220,23 @@ const handleSubmit = async (e: React.FormEvent) => {
               {!isLoading && <ArrowRight size={18} />}
             </button>
           </form>
+
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={() => {
+                addNotification('Entrando em Modo Demo...', 'info');
+                onLogin('demo@fincompar.com', 'Usuário Demo');
+              }}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
+            >
+              <Sparkles size={18} />
+              Entrar em Modo Demo
+            </button>
+            <p className="text-xs text-center text-gray-400 mt-2">
+              Teste o app sem criar conta (dados não salvos)
+            </p>
+          </div>
 
           <div className="mt-8 text-center space-y-4">
             <p className="text-xs text-gray-400 font-medium">Ou conecte com</p>

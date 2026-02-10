@@ -71,6 +71,17 @@ npm run dev
 
 Acesse: `http://localhost:3000`
 
+### 🎮 Modo Demo
+
+Use o app sem criar conta! Ideal para:
+- ✅ Testar funcionalidades rapidamente
+- ✅ Evitar limite de cadastros do Supabase
+- ✅ Desenvolvimento sem configurar banco de dados
+
+Basta clicar em **"Entrar em Modo Demo"** na tela de login.
+
+⚠️ **Nota:** Dados não são persistidos no modo demo.
+
 ## 📦 Deploy na Vercel
 
 ### Guia Rápido
@@ -158,11 +169,14 @@ Contribuições são bem-vindas!
 - Bundle size pode ser otimizado com code-splitting
 - Login social (Google/Facebook) ainda não implementado
 - PWA offline ainda não disponível
+- ⏱️ **Rate limit do Supabase:** Use o [Modo Demo](RATE_LIMIT.md) se atingir limite de cadastros
 
 ## 📞 Suporte
 
 - 📖 [Documentação Completa](SETUP.md)
 - 🚀 [Guia de Deploy](DEPLOY_VERCEL.md)
+- ⏱️ [Resolver Rate Limit](RATE_LIMIT.md)
+- 🔧 [Troubleshooting](TROUBLESHOOTING.md)
 - 🐛 [Issues](https://github.com/seu-usuario/fincompar/issues)
 
 ---

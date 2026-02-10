@@ -1,5 +1,9 @@
 /* Fincompar - Custom Styles */
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @keyframes slideDown {
   from {
     transform: translateY(-100%);
