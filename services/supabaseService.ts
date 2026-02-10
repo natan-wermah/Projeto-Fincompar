@@ -7,11 +7,22 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
-      .or(`payerId.eq.${userId},payerId.eq.(SELECT partnerId FROM users WHERE id = ${userId})`)
+      .or(`payer_id.eq.${userId}`)
       .order('date', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+
+    // Convert snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      amount: item.amount,
+      description: item.description,
+      date: item.date,
+      category: item.category,
+      payerId: item.payer_id,
+      type: item.type,
+      createdAt: item.created_at
+    }));
   } catch (error) {
     console.error('Error fetching transactions:', error);
     return [];
@@ -20,14 +31,36 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
 
 export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'createdAt'>): Promise<Transaction | null> => {
   try {
+    // Convert camelCase to snake_case for database
+    const dbTransaction = {
+      amount: transaction.amount,
+      description: transaction.description,
+      date: transaction.date,
+      category: transaction.category,
+      payer_id: transaction.payerId,
+      type: transaction.type,
+      created_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('transactions')
-      .insert([{ ...transaction, createdAt: new Date().toISOString() }])
+      .insert([dbTransaction])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      amount: data.amount,
+      description: data.description,
+      date: data.date,
+      category: data.category,
+      payerId: data.payer_id,
+      type: data.type,
+      createdAt: data.created_at
+    } : null;
   } catch (error) {
     console.error('Error adding transaction:', error);
     return null;
@@ -51,11 +84,20 @@ export const getGoals = async (userId: string): Promise<Goal[]> => {
     const { data, error } = await supabase
       .from('goals')
       .select('*')
-      .or(`contributions->>${userId}.not.is.null`)
-      .order('createdAt', { ascending: false });
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+
+    // Convert snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      name: item.name,
+      targetAmount: item.target_amount,
+      currentAmount: item.current_amount,
+      contributions: item.contributions || {},
+      deadline: item.deadline,
+      createdAt: item.created_at
+    }));
   } catch (error) {
     console.error('Error fetching goals:', error);
     return [];
@@ -64,14 +106,34 @@ export const getGoals = async (userId: string): Promise<Goal[]> => {
 
 export const addGoal = async (goal: Omit<Goal, 'id' | 'createdAt'>): Promise<Goal | null> => {
   try {
+    // Convert camelCase to snake_case
+    const dbGoal = {
+      name: goal.name,
+      target_amount: goal.targetAmount,
+      current_amount: goal.currentAmount,
+      contributions: goal.contributions,
+      deadline: goal.deadline,
+      created_at: new Date().toISOString()
+    };
+
     const { data, error } = await supabase
       .from('goals')
-      .insert([{ ...goal, createdAt: new Date().toISOString() }])
+      .insert([dbGoal])
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      name: data.name,
+      targetAmount: data.target_amount,
+      currentAmount: data.current_amount,
+      contributions: data.contributions,
+      deadline: data.deadline,
+      createdAt: data.created_at
+    } : null;
   } catch (error) {
     console.error('Error adding goal:', error);
     return null;
@@ -80,15 +142,33 @@ export const addGoal = async (goal: Omit<Goal, 'id' | 'createdAt'>): Promise<Goa
 
 export const updateGoal = async (id: string, updates: Partial<Goal>): Promise<Goal | null> => {
   try {
+    // Convert camelCase to snake_case
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.targetAmount !== undefined) dbUpdates.target_amount = updates.targetAmount;
+    if (updates.currentAmount !== undefined) dbUpdates.current_amount = updates.currentAmount;
+    if (updates.contributions !== undefined) dbUpdates.contributions = updates.contributions;
+    if (updates.deadline !== undefined) dbUpdates.deadline = updates.deadline;
+
     const { data, error } = await supabase
       .from('goals')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      name: data.name,
+      targetAmount: data.target_amount,
+      currentAmount: data.current_amount,
+      contributions: data.contributions,
+      deadline: data.deadline,
+      createdAt: data.created_at
+    } : null;
   } catch (error) {
     console.error('Error updating goal:', error);
     return null;
@@ -116,7 +196,15 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Convert snake_case to camelCase
+    return data ? {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      partnerId: data.partner_id,
+      avatar: data.avatar
+    } : null;
   } catch (error) {
     console.error('Error fetching user profile:', error);
     return null;
@@ -125,15 +213,30 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
 
 export const updateUserProfile = async (userId: string, updates: Partial<User>): Promise<User | null> => {
   try {
+    // Convert camelCase to snake_case
+    const dbUpdates: any = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.partnerId !== undefined) dbUpdates.partner_id = updates.partnerId;
+    if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
+
     const { data, error } = await supabase
       .from('users')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', userId)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      name: data.name,
+      email: data.email,
+      partnerId: data.partner_id,
+      avatar: data.avatar
+    } : null;
   } catch (error) {
     console.error('Error updating user profile:', error);
     return null;
