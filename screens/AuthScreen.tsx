@@ -2,6 +2,9 @@
 import React, { useState } from 'react';
 import { Mail, Lock, User, Heart, ArrowRight, ChevronLeft } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { Notification as NotificationType } from '../types';
+import { NotificationContainer } from '../components/Notification';
+import { generateId } from '../types';
 
 interface AuthScreenProps {
   onLogin: (email: string, name?: string) => void;
@@ -13,44 +16,76 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [partnerEmail, setPartnerEmail] = useState('');
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const addNotification = (message: string, type: NotificationType['type']) => {
+    const newNotification: NotificationType = {
+      id: generateId(),
+      message,
+      type,
+      duration: 5000,
+    };
+    setNotifications((prev) => [...prev, newNotification]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
 const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
+  setIsLoading(true);
+
+  try {
     if (isLogin) {
-    // LOGIN
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      // LOGIN
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      alert('Erro ao entrar: ' + error.message);
+      if (error) {
+        addNotification('Erro ao entrar: ' + error.message, 'error');
+      } else {
+        addNotification('Login realizado com sucesso!', 'success');
+        onLogin(email);
+      }
     } else {
-      onLogin(email); // você pode buscar mais dados depois
-    }
-  } else {
-    // SIGN UP
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name,
-          partner_email: partnerEmail || null,
+      // SIGN UP
+      if (password.length < 6) {
+        addNotification('A senha deve ter no mínimo 6 caracteres', 'warning');
+        setIsLoading(false);
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name,
+            partner_email: partnerEmail || null,
+          },
         },
-      },
-    });
+      });
 
-    if (error) {
-      alert('Erro ao criar conta: ' + error.message);
-    } else {
-      alert('Conta criada! Verifique seu e-mail para confirmar.');
-      setIsLogin(true);
+      if (error) {
+        addNotification('Erro ao criar conta: ' + error.message, 'error');
+      } else {
+        addNotification('Conta criada! Verifique seu e-mail para confirmar.', 'success');
+        setIsLogin(true);
+      }
     }
+  } catch (error) {
+    addNotification('Erro inesperado. Tente novamente.', 'error');
+  } finally {
+    setIsLoading(false);
   }
 };
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative overflow-hidden">
+      <NotificationContainer notifications={notifications} onClose={removeNotification} />
       {/* Decorative Background */}
       <div className="absolute top-0 left-0 w-full h-80 bg-purple-600 rounded-b-[4rem] shadow-2xl">
         <div className="absolute top-20 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
@@ -93,59 +128,68 @@ const handleSubmit = async (e: React.FormEvent) => {
           <form onSubmit={handleSubmit} className="space-y-5">
             {!isLogin && (
               <div className="relative">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                   <User size={18} />
                 </span>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  required 
+                  required
                   placeholder="Seu Nome Completo"
-                  className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                  aria-label="Nome completo"
+                  disabled={isLoading}
+                  className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             )}
 
             <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                 <Mail size={18} />
               </span>
-              <input 
-                type="email" 
+              <input
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required 
+                required
                 placeholder="E-mail do Casal ou Individual"
-                className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                aria-label="E-mail"
+                disabled={isLoading}
+                className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
             <div className="relative">
-              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400">
+              <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                 <Lock size={18} />
               </span>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required 
+                required
+                minLength={6}
                 placeholder="Senha de Acesso"
-                className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                aria-label="Senha (mínimo 6 caracteres)"
+                disabled={isLoading}
+                className="w-full bg-gray-50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
 
             {!isLogin && (
               <div className="relative">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400">
+                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true">
                   <Heart size={18} />
                 </span>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={partnerEmail}
                   onChange={(e) => setPartnerEmail(e.target.value)}
                   placeholder="E-mail do Parceiro(a) (opcional)"
-                  className="w-full bg-gray-100 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all italic text-sm"
+                  aria-label="E-mail do parceiro (opcional)"
+                  disabled={isLoading}
+                  className="w-full bg-gray-100 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all italic text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
             )}
@@ -156,11 +200,14 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
             )}
 
-            <button 
-              type="submit" 
-              className="w-full bg-purple-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-purple-200 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm"
+            <button
+              type="submit"
+              disabled={isLoading}
+              aria-label={isLogin ? 'Fazer login' : 'Criar conta'}
+              className="w-full bg-purple-600 text-white font-black py-5 rounded-2xl shadow-xl shadow-purple-200 active:scale-95 transition-all flex items-center justify-center gap-3 uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
             >
-              {isLogin ? 'Acessar Painel' : 'Começar Agora'} <ArrowRight size={18} />
+              {isLoading ? 'Aguarde...' : isLogin ? 'Acessar Painel' : 'Começar Agora'}
+              {!isLoading && <ArrowRight size={18} />}
             </button>
           </form>
 

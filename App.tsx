@@ -1,16 +1,26 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Transaction, Goal, User, EducationalContent, Category } from './types';
+import { Transaction, Goal, User, EducationalContent, Category, generateId, Notification as NotificationType } from './types';
 import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
-import { 
-  TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText, 
-  ChevronRight, X, UserPlus, Heart, Plus, Target, 
-  BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut, 
-  Settings, Bell, CreditCard, Sparkles
+import { NotificationContainer } from './components/Notification';
+import {
+  TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText,
+  ChevronRight, X, UserPlus, Heart, Plus, Target,
+  BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
+  Settings, Bell, CreditCard, Sparkles, Trash2
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES } from './constants';
+import { useDebounce } from './hooks/useDebounce';
+import { supabase } from './supabaseClient';
+import {
+  getTransactions,
+  addTransaction as addTransactionDB,
+  getGoals,
+  addGoal as addGoalDB,
+  updateGoal as updateGoalDB,
+} from './services/supabaseService';
 
 const INITIAL_USER: User = {
   id: 'user_1',
@@ -50,81 +60,237 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [user, setUser] = useState<User>(INITIAL_USER);
   const [partner, setPartner] = useState<User>(INITIAL_PARTNER);
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    { id: 't1', amount: 350.00, description: 'Compras Semanais', date: '2023-11-01', category: 'Alimentação', payerId: 'user_1', type: 'expense' },
-    { id: 't2', amount: 120.00, description: 'Cinema & Jantar', date: '2023-11-02', category: 'Lazer', payerId: 'user_2', type: 'expense' },
-    { id: 't3', amount: 5000.00, description: 'Renda Combinada', date: '2023-11-01', category: 'Outros', payerId: 'user_1', type: 'income' },
-  ]);
-  const [goals, setGoals] = useState<Goal[]>([
-    { id: 'g1', name: 'Casamento 2025', targetAmount: 30000, currentAmount: 8500, contributions: { 'user_1': 4000, 'user_2': 4500 } },
-    { id: 'g2', name: 'Troca de Carro', targetAmount: 15000, currentAmount: 2000, contributions: { 'user_1': 1000, 'user_2': 1000 } },
-  ]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [aiSummary, setAiSummary] = useState<string>('Analisando seus hábitos do mês...');
   const [showSummary, setShowSummary] = useState(false);
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+  const [isAddingGoal, setIsAddingGoal] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+
+  // Debounce transactions and goals for AI summary
+  const debouncedTransactions = useDebounce(transactions, 2000);
+  const debouncedGoals = useDebounce(goals, 2000);
+
+  const addNotification = (message: string, type: NotificationType['type']) => {
+    const newNotification: NotificationType = {
+      id: generateId(),
+      message,
+      type,
+      duration: 5000,
+    };
+    setNotifications((prev) => [...prev, newNotification]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
   const balance = totalIncome - totalExpense;
 
+  const loadUserData = useCallback(async () => {
+    if (!user.id || !isAuthenticated) return;
+    setIsLoadingData(true);
+    try {
+      const [transactionsData, goalsData] = await Promise.all([
+        getTransactions(user.id),
+        getGoals(user.id),
+      ]);
+      setTransactions(transactionsData);
+      setGoals(goalsData);
+    } catch (error) {
+      addNotification('Erro ao carregar dados', 'error');
+    } finally {
+      setIsLoadingData(false);
+    }
+  }, [user.id, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadUserData();
+    }
+  }, [isAuthenticated, loadUserData]);
+
   const fetchSummary = useCallback(async () => {
-    if (!isAuthenticated) return;
-    const summary = await getFinancialSummary(transactions, goals);
-    setAiSummary(summary || '');
-  }, [transactions, goals, isAuthenticated]);
+    if (!isAuthenticated || debouncedTransactions.length === 0) return;
+    try {
+      const summary = await getFinancialSummary(debouncedTransactions, debouncedGoals);
+      setAiSummary(summary || 'Você está no caminho certo! Continue assim.');
+    } catch (error) {
+      console.error('Error fetching summary:', error);
+    }
+  }, [debouncedTransactions, debouncedGoals, isAuthenticated]);
 
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
 
-  const handleLogin = (email: string, name?: string) => {
-    if (name) {
-      setUser({ ...INITIAL_USER, name, email });
-    } else {
-      setUser({ ...INITIAL_USER, email });
+  const handleLogin = async (email: string, name?: string) => {
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser) {
+        setUser({
+          id: authUser.id,
+          name: name || authUser.user_metadata?.name || 'Usuário',
+          email: authUser.email || email,
+          partnerId: authUser.user_metadata?.partner_id || null,
+          avatar: authUser.user_metadata?.avatar || INITIAL_USER.avatar,
+        });
+        setIsAuthenticated(true);
+      }
+    } catch (error) {
+      console.error('Error in handleLogin:', error);
+      setIsAuthenticated(true);
     }
-    setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setActiveTab('dashboard');
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAuthenticated(false);
+      setActiveTab('dashboard');
+      setTransactions([]);
+      setGoals([]);
+      addNotification('Logout realizado com sucesso', 'success');
+    } catch (error) {
+      addNotification('Erro ao fazer logout', 'error');
+    }
   };
 
-  const handleAddTransaction = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddTransaction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const newTransaction: Transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      amount: parseFloat(formData.get('amount') as string),
-      description: formData.get('description') as string,
+
+    const amount = parseFloat(formData.get('amount') as string);
+    const description = formData.get('description') as string;
+
+    // Validações
+    if (!description || description.trim().length === 0) {
+      addNotification('Por favor, adicione uma descrição', 'warning');
+      return;
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      addNotification('Por favor, insira um valor válido', 'warning');
+      return;
+    }
+
+    const newTransaction: Omit<Transaction, 'id' | 'createdAt'> = {
+      amount,
+      description: description.trim(),
       category: formData.get('category') as Category,
       date: new Date().toISOString().split('T')[0],
       payerId: user.id,
       type: formData.get('type') as 'income' | 'expense'
     };
-    setTransactions([newTransaction, ...transactions]);
-    setActiveTab('dashboard');
+
+    try {
+      const savedTransaction = await addTransactionDB(newTransaction);
+      if (savedTransaction) {
+        setTransactions([savedTransaction, ...transactions]);
+        setActiveTab('dashboard');
+        addNotification(
+          `${newTransaction.type === 'income' ? 'Entrada' : 'Saída'} adicionada com sucesso!`,
+          'success'
+        );
+      } else {
+        addNotification('Erro ao salvar transação', 'error');
+      }
+    } catch (error) {
+      addNotification('Erro ao adicionar transação', 'error');
+    }
   };
 
-  const handleContribution = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleContribution = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!contributionGoal) return;
+
     const formData = new FormData(e.currentTarget);
     const amount = parseFloat(formData.get('amount') as string);
     const contributorId = formData.get('contributor') as string;
-    if (isNaN(amount) || amount <= 0) return;
-    setGoals(prev => prev.map(g => {
-      if (g.id === contributionGoal.id) {
-        const newContr = { ...g.contributions };
-        newContr[contributorId] = (newContr[contributorId] || 0) + amount;
-        return { ...g, currentAmount: g.currentAmount + amount, contributions: newContr };
+
+    // Validações
+    if (isNaN(amount) || amount <= 0) {
+      addNotification('Por favor, insira um valor válido', 'warning');
+      return;
+    }
+
+    if (amount > 1000000) {
+      addNotification('Valor muito alto. Máximo: R$ 1.000.000', 'warning');
+      return;
+    }
+
+    try {
+      const updatedGoal = { ...contributionGoal };
+      updatedGoal.contributions[contributorId] = (updatedGoal.contributions[contributorId] || 0) + amount;
+      updatedGoal.currentAmount += amount;
+
+      const savedGoal = await updateGoalDB(contributionGoal.id, {
+        currentAmount: updatedGoal.currentAmount,
+        contributions: updatedGoal.contributions,
+      });
+
+      if (savedGoal) {
+        setGoals((prev) =>
+          prev.map((g) => (g.id === contributionGoal.id ? savedGoal : g))
+        );
+        setContributionGoal(null);
+        addNotification(`Contribuição de R$ ${amount.toFixed(2)} adicionada!`, 'success');
+      } else {
+        addNotification('Erro ao salvar contribuição', 'error');
       }
-      return g;
-    }));
-    setContributionGoal(null);
+    } catch (error) {
+      addNotification('Erro ao adicionar contribuição', 'error');
+    }
+  };
+
+  const handleAddGoal = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    const name = formData.get('goalName') as string;
+    const targetAmount = parseFloat(formData.get('targetAmount') as string);
+
+    // Validações
+    if (!name || name.trim().length === 0) {
+      addNotification('Por favor, dê um nome para a meta', 'warning');
+      return;
+    }
+
+    if (isNaN(targetAmount) || targetAmount <= 0) {
+      addNotification('Por favor, insira um valor válido', 'warning');
+      return;
+    }
+
+    if (targetAmount > 10000000) {
+      addNotification('Valor muito alto. Máximo: R$ 10.000.000', 'warning');
+      return;
+    }
+
+    const newGoal: Omit<Goal, 'id' | 'createdAt'> = {
+      name: name.trim(),
+      targetAmount,
+      currentAmount: 0,
+      contributions: { [user.id]: 0 },
+    };
+
+    try {
+      const savedGoal = await addGoalDB(newGoal);
+      if (savedGoal) {
+        setGoals([savedGoal, ...goals]);
+        setIsAddingGoal(false);
+        addNotification('Meta criada com sucesso!', 'success');
+      } else {
+        addNotification('Erro ao criar meta', 'error');
+      }
+    } catch (error) {
+      addNotification('Erro ao adicionar meta', 'error');
+    }
   };
 
   const handleUpdateUser = (e: React.FormEvent<HTMLFormElement>) => {
@@ -132,8 +298,21 @@ const App: React.FC = () => {
     const formData = new FormData(e.currentTarget);
     const userName = formData.get('userName') as string;
     const userEmail = formData.get('userEmail') as string;
-    setUser(prev => ({ ...prev, name: userName, email: userEmail }));
+
+    // Validações
+    if (!userName || userName.trim().length === 0) {
+      addNotification('Por favor, insira um nome válido', 'warning');
+      return;
+    }
+
+    if (!userEmail || !userEmail.includes('@')) {
+      addNotification('Por favor, insira um e-mail válido', 'warning');
+      return;
+    }
+
+    setUser((prev) => ({ ...prev, name: userName.trim(), email: userEmail.trim() }));
     setIsEditingUser(false);
+    addNotification('Perfil atualizado com sucesso!', 'success');
   };
 
   const handleUpdatePartner = (e: React.FormEvent<HTMLFormElement>) => {
@@ -141,8 +320,21 @@ const App: React.FC = () => {
     const formData = new FormData(e.currentTarget);
     const partnerName = formData.get('partnerName') as string;
     const partnerEmail = formData.get('partnerEmail') as string;
-    setPartner(prev => ({ ...prev, name: partnerName, email: partnerEmail }));
+
+    // Validações
+    if (!partnerName || partnerName.trim().length === 0) {
+      addNotification('Por favor, insira um nome válido', 'warning');
+      return;
+    }
+
+    if (!partnerEmail || !partnerEmail.includes('@')) {
+      addNotification('Por favor, insira um e-mail válido', 'warning');
+      return;
+    }
+
+    setPartner((prev) => ({ ...prev, name: partnerName.trim(), email: partnerEmail.trim() }));
     setIsEditingPartner(false);
+    addNotification('Parceiro atualizado com sucesso!', 'success');
   };
 
   const playAudioTip = async (text: string) => {
@@ -263,46 +455,91 @@ const App: React.FC = () => {
     <div className="animate-slideUp pb-10">
       <div className="flex justify-between items-center mb-8">
         <h2 className="text-2xl font-black text-gray-800">Novo Registro</h2>
-        <button onClick={() => setActiveTab('dashboard')} className="p-2 bg-gray-100 rounded-full"><X size={24} /></button>
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          aria-label="Fechar formulário"
+          className="p-2 bg-gray-100 rounded-full active:scale-95 transition-all"
+        >
+          <X size={24} />
+        </button>
       </div>
       <form onSubmit={handleAddTransaction} className="space-y-6">
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
           <div>
-            <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Valor da transação</label>
+            <label htmlFor="transactionAmount" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">
+              Valor da transação
+            </label>
             <div className="flex items-center gap-3 border-b-2 border-purple-100 pb-2 focus-within:border-purple-600 transition-all">
-              <span className="text-2xl font-black text-gray-300">R$</span>
-              <input 
-                name="amount" type="number" step="0.01" required autoFocus
+              <span className="text-2xl font-black text-gray-300" aria-hidden="true">R$</span>
+              <input
+                id="transactionAmount"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                max="1000000"
+                required
+                autoFocus
+                aria-label="Valor da transação em reais"
                 className="w-full bg-transparent border-0 outline-none text-4xl font-black text-purple-600 placeholder:text-gray-100"
                 placeholder="0,00"
               />
             </div>
           </div>
           <div>
-            <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">O que foi?</label>
-            <input 
-              name="description" type="text" required
+            <label htmlFor="transactionDesc" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+              O que foi?
+            </label>
+            <input
+              id="transactionDesc"
+              name="description"
+              type="text"
+              required
+              maxLength={100}
+              aria-label="Descrição da transação"
               className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none"
               placeholder="Ex: Jantar de sexta"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">Tipo</label>
-              <select name="type" className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none">
+              <label htmlFor="transactionType" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+                Tipo
+              </label>
+              <select
+                id="transactionType"
+                name="type"
+                aria-label="Tipo de transação"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none"
+              >
                 <option value="expense">Saída 💸</option>
                 <option value="income">Entrada 💰</option>
               </select>
             </div>
             <div>
-              <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">Categoria</label>
-              <select name="category" className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none">
-                {CATEGORIES.map(c => <option key={c.name} value={c.name}>{c.icon} {c.name}</option>)}
+              <label htmlFor="transactionCategory" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+                Categoria
+              </label>
+              <select
+                id="transactionCategory"
+                name="category"
+                aria-label="Categoria da transação"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.icon} {c.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
         </div>
-        <button type="submit" className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-200 active:scale-95 transition-all text-lg tracking-tight">
+        <button
+          type="submit"
+          aria-label="Salvar transação"
+          className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-200 active:scale-95 transition-all text-lg tracking-tight"
+        >
           Salvar no App
         </button>
       </form>
@@ -313,7 +550,13 @@ const App: React.FC = () => {
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="flex justify-between items-center px-1">
         <h2 className="text-2xl font-black text-gray-800">Nossas Metas</h2>
-        <button className="bg-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-purple-200"><Plus size={22} /></button>
+        <button
+          onClick={() => setIsAddingGoal(true)}
+          aria-label="Adicionar nova meta"
+          className="bg-purple-600 text-white p-3 rounded-2xl shadow-lg shadow-purple-200 active:scale-95 transition-all"
+        >
+          <Plus size={22} />
+        </button>
       </div>
       <div className="space-y-5">
         {goals.map(goal => {
@@ -451,8 +694,9 @@ const App: React.FC = () => {
         ))}
       </div>
 
-      <button 
+      <button
         onClick={handleLogout}
+        aria-label="Encerrar sessão"
         className="w-full py-5 rounded-3xl border-2 border-red-50 text-red-500 font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-3"
       >
         <LogOut size={16} /> Encerrar Sessão
@@ -477,6 +721,7 @@ const App: React.FC = () => {
 
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab} title="Fincompar">
+      <NotificationContainer notifications={notifications} onClose={removeNotification} />
       {getActiveTabContent()}
 
       {showSummary && (
@@ -495,7 +740,11 @@ const App: React.FC = () => {
             <div className="bg-purple-50/50 p-6 rounded-[2rem] border border-purple-100 mb-8">
                <p className="text-gray-700 font-medium leading-relaxed italic text-lg">"{aiSummary}"</p>
             </div>
-            <button onClick={() => setShowSummary(false)} className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-gray-200 active:scale-95 transition-all">
+            <button
+              onClick={() => setShowSummary(false)}
+              aria-label="Fechar análise da IA"
+              className="w-full bg-gray-900 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-gray-200 active:scale-95 transition-all"
+            >
               Entendido!
             </button>
           </div>
@@ -535,11 +784,23 @@ const App: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Quanto vai guardar?</label>
+                <label htmlFor="contributionAmount" className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">
+                  Quanto vai guardar?
+                </label>
                 <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 font-black text-xl">R$</span>
-                  <input 
-                    name="amount" type="number" step="0.01" required autoFocus
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 font-black text-xl" aria-hidden="true">
+                    R$
+                  </span>
+                  <input
+                    id="contributionAmount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max="1000000"
+                    required
+                    autoFocus
+                    aria-label="Valor da contribuição em reais"
                     className="w-full bg-gray-50 border-0 rounded-[2rem] py-6 pl-16 pr-6 focus:ring-4 focus:ring-purple-100 font-black text-3xl text-purple-600 outline-none"
                     placeholder="0,00"
                   />
@@ -547,8 +808,21 @@ const App: React.FC = () => {
               </div>
 
               <div className="flex gap-3">
-                 <button type="button" onClick={() => setContributionGoal(null)} className="flex-1 py-5 bg-gray-100 rounded-[2rem] font-black text-gray-500 uppercase text-xs active:bg-gray-200">Cancelar</button>
-                 <button type="submit" className="flex-[2] bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-100 active:scale-95 transition-all text-sm uppercase tracking-widest">Confirmar</button>
+                 <button
+                   type="button"
+                   onClick={() => setContributionGoal(null)}
+                   aria-label="Cancelar contribuição"
+                   className="flex-1 py-5 bg-gray-100 rounded-[2rem] font-black text-gray-500 uppercase text-xs active:bg-gray-200"
+                 >
+                   Cancelar
+                 </button>
+                 <button
+                   type="submit"
+                   aria-label="Confirmar contribuição"
+                   className="flex-[2] bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-100 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                 >
+                   Confirmar
+                 </button>
               </div>
             </form>
           </div>
@@ -569,18 +843,40 @@ const App: React.FC = () => {
               </div>
             </div>
             <form onSubmit={handleUpdateUser} className="space-y-6">
-              <input 
-                name="userName" type="text" defaultValue={user.name} required 
-                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500" 
-                placeholder="Seu nome" 
+              <input
+                name="userName"
+                type="text"
+                defaultValue={user.name}
+                required
+                maxLength={100}
+                aria-label="Seu nome"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Seu nome"
               />
-              <input 
-                name="userEmail" type="email" defaultValue={user.email} required 
-                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500" 
-                placeholder="Seu e-mail" 
+              <input
+                name="userEmail"
+                type="email"
+                defaultValue={user.email}
+                required
+                aria-label="Seu e-mail"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Seu e-mail"
               />
-              <button type="submit" className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest">ATUALIZAR MEU PERFIL</button>
-              <button type="button" onClick={() => setIsEditingUser(false)} className="w-full py-2 text-xs font-black text-gray-400 uppercase tracking-widest">Voltar</button>
+              <button
+                type="submit"
+                aria-label="Atualizar perfil"
+                className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                ATUALIZAR MEU PERFIL
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingUser(false)}
+                aria-label="Voltar"
+                className="w-full py-2 text-xs font-black text-gray-400 uppercase tracking-widest"
+              >
+                Voltar
+              </button>
             </form>
           </div>
         </div>
@@ -600,18 +896,113 @@ const App: React.FC = () => {
               </div>
             </div>
             <form onSubmit={handleUpdatePartner} className="space-y-6">
-              <input 
-                name="partnerName" type="text" defaultValue={partner.name} required 
-                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-green-500" 
-                placeholder="Nome do parceiro" 
+              <input
+                name="partnerName"
+                type="text"
+                defaultValue={partner.name}
+                required
+                maxLength={100}
+                aria-label="Nome do parceiro"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Nome do parceiro"
               />
-              <input 
-                name="partnerEmail" type="email" defaultValue={partner.email} required 
-                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-green-500" 
-                placeholder="E-mail do parceiro" 
+              <input
+                name="partnerEmail"
+                type="email"
+                defaultValue={partner.email}
+                required
+                aria-label="E-mail do parceiro"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="E-mail do parceiro"
               />
-              <button type="submit" className="w-full bg-green-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest">ATUALIZAR PARCEIRO</button>
-              <button type="button" onClick={() => setIsEditingPartner(false)} className="w-full py-2 text-xs font-black text-gray-400 uppercase tracking-widest">Voltar</button>
+              <button
+                type="submit"
+                aria-label="Atualizar parceiro"
+                className="w-full bg-green-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                ATUALIZAR PARCEIRO
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingPartner(false)}
+                aria-label="Voltar"
+                className="w-full py-2 text-xs font-black text-gray-400 uppercase tracking-widest"
+              >
+                Voltar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isAddingGoal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp">
+            <div className="w-12 h-1.5 bg-gray-100 rounded-full mx-auto mb-8"></div>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="bg-purple-100 p-4 rounded-3xl text-purple-600">
+                <Target size={32} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-gray-800 tracking-tight">Nova Meta</h2>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Objetivos em Casal</p>
+              </div>
+            </div>
+            <form onSubmit={handleAddGoal} className="space-y-6">
+              <div>
+                <label htmlFor="goalName" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+                  Nome da meta
+                </label>
+                <input
+                  id="goalName"
+                  name="goalName"
+                  type="text"
+                  required
+                  maxLength={50}
+                  placeholder="Ex: Lua de mel"
+                  aria-label="Nome da meta"
+                  className="w-full bg-gray-50 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="targetAmount" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+                  Valor alvo
+                </label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 font-black text-xl" aria-hidden="true">
+                    R$
+                  </span>
+                  <input
+                    id="targetAmount"
+                    name="targetAmount"
+                    type="number"
+                    step="0.01"
+                    required
+                    min="1"
+                    max="10000000"
+                    placeholder="0,00"
+                    aria-label="Valor alvo da meta"
+                    className="w-full bg-gray-50 border-0 rounded-[2rem] py-6 pl-16 pr-6 focus:ring-4 focus:ring-purple-100 font-black text-3xl text-purple-600 outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingGoal(false)}
+                  aria-label="Cancelar"
+                  className="flex-1 py-5 bg-gray-100 rounded-[2rem] font-black text-gray-500 uppercase text-xs active:bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  aria-label="Criar meta"
+                  className="flex-[2] bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-100 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                >
+                  Criar Meta
+                </button>
+              </div>
             </form>
           </div>
         </div>
@@ -619,9 +1010,9 @@ const App: React.FC = () => {
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideUp { 
-          from { transform: translateY(100%); opacity: 0; } 
-          to { transform: translateY(0); opacity: 1; } 
+        @keyframes slideUp {
+          from { transform: translateY(100%); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
         .animate-fadeIn { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-slideUp { animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }

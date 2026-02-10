@@ -1,0 +1,46 @@
+/* Fincompar - Custom Styles */
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Smooth focus styles for accessibility */
+*:focus-visible {
+  outline: 2px solid #7C3AED;
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar for browsers that support it */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D1D5DB #F9FAFB;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #F9FAFB;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #D1D5DB;
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #9CA3AF;
+}
