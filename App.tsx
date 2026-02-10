@@ -132,6 +132,20 @@ const App: React.FC = () => {
   }, [fetchSummary]);
 
   const handleLogin = async (email: string, name?: string) => {
+    // Demo mode: skip Supabase authentication
+    if (email === 'demo@fincompar.com') {
+      setUser({
+        id: 'demo-user-id',
+        name: name || 'Usuário Demo',
+        email: email,
+        partnerId: null,
+        avatar: INITIAL_USER.avatar,
+      });
+      setIsAuthenticated(true);
+      return;
+    }
+
+    // Normal authentication with Supabase
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
@@ -152,11 +166,15 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut();
+      // Only call Supabase if not in demo mode
+      if (user?.email !== 'demo@fincompar.com') {
+        await supabase.auth.signOut();
+      }
       setIsAuthenticated(false);
       setActiveTab('dashboard');
       setTransactions([]);
       setGoals([]);
+      setUser(null);
       addNotification('Logout realizado com sucesso', 'success');
     } catch (error) {
       addNotification('Erro ao fazer logout', 'error');

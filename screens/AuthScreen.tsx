@@ -47,8 +47,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       if (error) {
         // Tratamento especial para rate limit
-        if (error.message.includes('rate limit')) {
-          addNotification('⏱️ Muitas tentativas. Aguarde 1 hora ou use o Modo Demo abaixo.', 'warning');
+        if (error.message.includes('rate limit') || error.message.includes('429') || error.message.includes('Too Many')) {
+          addNotification('⏱️ Muitas tentativas de login. Use o Modo Demo para testar o app!', 'warning');
         } else {
           addNotification('Erro ao entrar: ' + error.message, 'error');
         }
@@ -77,8 +77,8 @@ const handleSubmit = async (e: React.FormEvent) => {
 
       if (error) {
         // Tratamento especial para rate limit
-        if (error.message.includes('rate limit')) {
-          addNotification('⏱️ Limite de cadastros atingido. Aguarde 1 hora ou use o Modo Demo.', 'warning');
+        if (error.message.includes('rate limit') || error.message.includes('429') || error.message.includes('Too Many')) {
+          addNotification('⏱️ Limite de cadastros atingido (máx. 3-4 por hora). Use o Modo Demo para testar!', 'warning');
         } else {
           addNotification('Erro ao criar conta: ' + error.message, 'error');
         }
@@ -87,8 +87,15 @@ const handleSubmit = async (e: React.FormEvent) => {
         setIsLogin(true);
       }
     }
-  } catch (error) {
-    addNotification('Erro inesperado. Tente novamente.', 'error');
+  } catch (error: any) {
+    // Check if it's a network error or 429
+    if (error?.message?.includes('429') || error?.message?.includes('Too Many') || error?.message?.includes('rate limit')) {
+      addNotification('⏱️ Muitas tentativas. Use o Modo Demo para testar o app!', 'warning');
+    } else if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+      addNotification('❌ Erro de conexão. Verifique sua internet ou use o Modo Demo.', 'error');
+    } else {
+      addNotification('Erro inesperado. Tente novamente ou use o Modo Demo.', 'error');
+    }
   } finally {
     setIsLoading(false);
   }
