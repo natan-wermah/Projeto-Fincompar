@@ -6,7 +6,9 @@
       "Bash(npx tailwindcss:*)",
       "Bash(npm uninstall:*)",
       "Bash(kill:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "WebFetch(domain:www.fincompar.com.br)",
+      "Bash(findstr:*)"
     ]
   }
 }
