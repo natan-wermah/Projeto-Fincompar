@@ -27,7 +27,8 @@ export const NAVIGATION_ITEMS = [
   { id: 'profile', label: 'Perfil', icon: <UserIcon size={24} /> }
 ];
 
-export const CATEGORIES: { name: string; icon: string }[] = [
+// Categorias para GASTOS (expenses)
+export const EXPENSE_CATEGORIES: { name: string; icon: string }[] = [
   { name: 'Alimentação', icon: '🍕' },
   { name: 'Moradia', icon: '🏠' },
   { name: 'Lazer', icon: '🎬' },
@@ -36,3 +37,14 @@ export const CATEGORIES: { name: string; icon: string }[] = [
   { name: 'Educação', icon: '📚' },
   { name: 'Outros', icon: '📦' }
 ];
+
+// Categorias para GANHOS (income)
+export const INCOME_CATEGORIES: { name: string; icon: string }[] = [
+  { name: 'Trabalho Principal', icon: '💼' },
+  { name: 'Clientes', icon: '🤝' },
+  { name: 'Freelas', icon: '💻' },
+  { name: 'Outros', icon: '💰' }
+];
+
+// Manter compatibilidade com código antigo (por enquanto)
+export const CATEGORIES = EXPENSE_CATEGORIES;

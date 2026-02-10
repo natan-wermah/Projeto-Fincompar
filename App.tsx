@@ -7,12 +7,12 @@ import { NotificationContainer } from './components/Notification';
 import ConfigWarning from './components/ConfigWarning';
 import {
   TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText,
-  ChevronRight, X, UserPlus, Heart, Plus, Target,
+  ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
   Settings, Bell, CreditCard, Sparkles, Trash2
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
-import { CATEGORIES } from './constants';
+import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from './constants';
 import { useDebounce } from './hooks/useDebounce';
 import { supabase } from './supabaseClient';
 import {
@@ -71,6 +71,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | null>(null);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -130,6 +131,13 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
+
+  // Reset transaction type selection when leaving 'add' tab
+  useEffect(() => {
+    if (activeTab !== 'add') {
+      setTransactionTypeSelected(null);
+    }
+  }, [activeTab]);
 
   const handleLogin = async (email: string, name?: string) => {
     // Demo mode: skip Supabase authentication
@@ -226,6 +234,7 @@ const App: React.FC = () => {
       if (savedTransaction) {
         setTransactions([savedTransaction, ...transactions]);
         setActiveTab('dashboard');
+        setTransactionTypeSelected(null); // Reset transaction type selection
         addNotification(
           `${newTransaction.type === 'income' ? 'Entrada' : 'Saída'} adicionada com sucesso!`,
           'success'
@@ -504,71 +513,134 @@ const App: React.FC = () => {
     </div>
   );
 
-  const renderAdd = () => (
-    <div className="animate-slideUp pb-10">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-black text-gray-800">Novo Registro</h2>
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          aria-label="Fechar formulário"
-          className="p-2 bg-gray-100 rounded-full active:scale-95 transition-all"
-        >
-          <X size={24} />
-        </button>
-      </div>
-      <form onSubmit={handleAddTransaction} className="space-y-6">
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
+  const renderAdd = () => {
+    // Step 1: Choose transaction type (Gasto ou Ganho)
+    if (transactionTypeSelected === null) {
+      return (
+        <div className="animate-slideUp pb-10">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-black text-gray-800">Novo Registro</h2>
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              aria-label="Fechar"
+              className="p-2 bg-gray-100 rounded-full active:scale-95 transition-all"
+            >
+              <X size={24} />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-sm font-bold text-gray-500 text-center mb-6 uppercase tracking-widest">
+              O que você quer registrar?
+            </p>
+
+            {/* Botão Gasto */}
+            <button
+              onClick={() => setTransactionTypeSelected('expense')}
+              className="w-full bg-gradient-to-br from-red-500 to-pink-600 text-white p-8 rounded-[2.5rem] shadow-xl shadow-red-200 active:scale-95 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-4 rounded-2xl">
+                    <TrendingDown size={32} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-2xl font-black">Gasto</h3>
+                    <p className="text-sm font-medium opacity-90">Despesas e saídas</p>
+                  </div>
+                </div>
+                <ChevronRight size={28} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </button>
+
+            {/* Botão Ganho */}
+            <button
+              onClick={() => setTransactionTypeSelected('income')}
+              className="w-full bg-gradient-to-br from-green-500 to-emerald-600 text-white p-8 rounded-[2.5rem] shadow-xl shadow-green-200 active:scale-95 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-4 rounded-2xl">
+                    <TrendingUp size={32} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-2xl font-black">Ganho</h3>
+                    <p className="text-sm font-medium opacity-90">Receitas e entradas</p>
+                  </div>
+                </div>
+                <ChevronRight size={28} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    // Step 2: Show form with appropriate categories
+    const categories = transactionTypeSelected === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+    const typeLabel = transactionTypeSelected === 'expense' ? 'Gasto' : 'Ganho';
+    const typeColor = transactionTypeSelected === 'expense' ? 'red' : 'green';
+
+    return (
+      <div className="animate-slideUp pb-10">
+        <div className="flex items-center gap-4 mb-8">
+          <button
+            onClick={() => setTransactionTypeSelected(null)}
+            aria-label="Voltar"
+            className="p-2 bg-gray-100 rounded-full active:scale-95 transition-all"
+          >
+            <ChevronLeft size={24} />
+          </button>
           <div>
-            <label htmlFor="transactionAmount" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">
-              Valor da transação
-            </label>
-            <div className="flex items-center gap-3 border-b-2 border-purple-100 pb-2 focus-within:border-purple-600 transition-all">
-              <span className="text-2xl font-black text-gray-300" aria-hidden="true">R$</span>
+            <h2 className="text-2xl font-black text-gray-800">Novo {typeLabel}</h2>
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+              {typeLabel === 'Gasto' ? 'Despesas e saídas' : 'Receitas e entradas'}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleAddTransaction} className="space-y-6">
+          <input type="hidden" name="type" value={transactionTypeSelected} />
+
+          <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
+            <div>
+              <label htmlFor="transactionAmount" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">
+                Valor
+              </label>
+              <div className={`flex items-center gap-3 border-b-2 border-${typeColor}-100 pb-2 focus-within:border-${typeColor}-600 transition-all`}>
+                <span className="text-2xl font-black text-gray-300" aria-hidden="true">R$</span>
+                <input
+                  id="transactionAmount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max="1000000"
+                  required
+                  autoFocus
+                  aria-label="Valor em reais"
+                  className={`w-full bg-transparent border-0 outline-none text-4xl font-black text-${typeColor}-600 placeholder:text-gray-100`}
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="transactionDesc" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
+                Descrição
+              </label>
               <input
-                id="transactionAmount"
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                max="1000000"
+                id="transactionDesc"
+                name="description"
+                type="text"
                 required
-                autoFocus
-                aria-label="Valor da transação em reais"
-                className="w-full bg-transparent border-0 outline-none text-4xl font-black text-purple-600 placeholder:text-gray-100"
-                placeholder="0,00"
+                maxLength={100}
+                aria-label="Descrição"
+                className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                placeholder={typeLabel === 'Gasto' ? 'Ex: Jantar de sexta' : 'Ex: Salário do mês'}
               />
             </div>
-          </div>
-          <div>
-            <label htmlFor="transactionDesc" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
-              O que foi?
-            </label>
-            <input
-              id="transactionDesc"
-              name="description"
-              type="text"
-              required
-              maxLength={100}
-              aria-label="Descrição da transação"
-              className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none"
-              placeholder="Ex: Jantar de sexta"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="transactionType" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
-                Tipo
-              </label>
-              <select
-                id="transactionType"
-                name="type"
-                aria-label="Tipo de transação"
-                className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none"
-              >
-                <option value="expense">Saída 💸</option>
-                <option value="income">Entrada 💰</option>
-              </select>
-            </div>
+
             <div>
               <label htmlFor="transactionCategory" className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-2">
                 Categoria
@@ -576,10 +648,10 @@ const App: React.FC = () => {
               <select
                 id="transactionCategory"
                 name="category"
-                aria-label="Categoria da transação"
+                aria-label="Categoria"
                 className="w-full bg-gray-50 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none"
               >
-                {CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c.name} value={c.name}>
                     {c.icon} {c.name}
                   </option>
@@ -587,17 +659,18 @@ const App: React.FC = () => {
               </select>
             </div>
           </div>
-        </div>
-        <button
-          type="submit"
-          aria-label="Salvar transação"
-          className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-200 active:scale-95 transition-all text-lg tracking-tight"
-        >
-          Salvar no App
-        </button>
-      </form>
-    </div>
-  );
+
+          <button
+            type="submit"
+            aria-label="Salvar"
+            className={`w-full bg-gradient-to-r from-${typeColor}-500 to-${typeColor}-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-${typeColor}-200 active:scale-95 transition-all text-lg tracking-tight`}
+          >
+            Salvar {typeLabel}
+          </button>
+        </form>
+      </div>
+    );
+  };
 
   const renderGoals = () => (
     <div className="space-y-6 animate-fadeIn pb-10">

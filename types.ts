@@ -1,5 +1,12 @@
 
-export type Category = 'Alimentação' | 'Moradia' | 'Lazer' | 'Transporte' | 'Saúde' | 'Educação' | 'Outros';
+// Categorias de gastos (expenses)
+export type ExpenseCategory = 'Alimentação' | 'Moradia' | 'Lazer' | 'Transporte' | 'Saúde' | 'Educação' | 'Outros';
+
+// Categorias de ganhos (income)
+export type IncomeCategory = 'Trabalho Principal' | 'Clientes' | 'Freelas' | 'Outros';
+
+// Categoria pode ser qualquer uma das duas
+export type Category = ExpenseCategory | IncomeCategory;
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
