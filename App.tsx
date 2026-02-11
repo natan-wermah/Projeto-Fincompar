@@ -117,6 +117,7 @@ const App: React.FC = () => {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
   const balance = totalIncome - totalExpense;
+  const totalInvested = goals.reduce((acc, curr) => acc + curr.currentAmount, 0);
 
   const loadUserData = useCallback(async () => {
     if (!user.id || !isAuthenticated) return;
@@ -633,24 +634,36 @@ const App: React.FC = () => {
           <div className="mb-2 bg-green-400 w-2 h-2 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mt-8">
+        <div className="space-y-3 mt-8">
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setShowChartModal('income')}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
+            >
+              <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
+                Entradas <span className="text-sm">📈</span>
+              </p>
+              <p className="font-bold text-lg text-green-300">R$ {totalIncome.toLocaleString('pt-BR')}</p>
+            </button>
+            <button
+              onClick={() => setShowChartModal('expense')}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
+            >
+              <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
+                Saídas <span className="text-sm">📉</span>
+              </p>
+              <p className="font-bold text-lg text-red-300">R$ {totalExpense.toLocaleString('pt-BR')}</p>
+            </button>
+          </div>
+
           <button
-            onClick={() => setShowChartModal('income')}
-            className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
+            onClick={() => setActiveTab('goals')}
+            className="w-full bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
           >
             <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
-              Entradas <span className="text-sm">📈</span>
+              Investido <span className="text-sm">💰</span>
             </p>
-            <p className="font-bold text-lg text-green-300">R$ {totalIncome.toLocaleString('pt-BR')}</p>
-          </button>
-          <button
-            onClick={() => setShowChartModal('expense')}
-            className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
-          >
-            <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
-              Saídas <span className="text-sm">📉</span>
-            </p>
-            <p className="font-bold text-lg text-red-300">R$ {totalExpense.toLocaleString('pt-BR')}</p>
+            <p className="font-bold text-lg text-yellow-300">R$ {totalInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
           </button>
         </div>
       </div>
