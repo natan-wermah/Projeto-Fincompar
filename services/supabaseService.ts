@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { Transaction, Goal, User } from '../types';
+import { Transaction, Goal, User, Investment } from '../types';
 
 // Transactions
 export const getTransactions = async (userId: string): Promise<Transaction[]> => {
@@ -246,4 +246,122 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
 export const getPartnerProfile = async (partnerId: string): Promise<User | null> => {
   if (!partnerId) return null;
   return getUserProfile(partnerId);
+};
+
+// Investments
+export const getInvestments = async (userId: string): Promise<Investment[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('investments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    // Convert snake_case to camelCase
+    return (data || []).map(item => ({
+      id: item.id,
+      amount: item.amount,
+      description: item.description,
+      category: item.category,
+      platform: item.platform,
+      quantity: item.quantity,
+      date: item.date,
+      userId: item.user_id,
+      createdAt: item.created_at
+    }));
+  } catch (error) {
+    console.error('Error fetching investments:', error);
+    return [];
+  }
+};
+
+export const addInvestment = async (investment: Omit<Investment, 'id' | 'createdAt'>): Promise<Investment | null> => {
+  try {
+    // Convert camelCase to snake_case for database
+    const dbInvestment = {
+      amount: investment.amount,
+      description: investment.description,
+      category: investment.category,
+      platform: investment.platform,
+      quantity: investment.quantity,
+      date: investment.date,
+      user_id: investment.userId,
+      created_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('investments')
+      .insert([dbInvestment])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      amount: data.amount,
+      description: data.description,
+      category: data.category,
+      platform: data.platform,
+      quantity: data.quantity,
+      date: data.date,
+      userId: data.user_id,
+      createdAt: data.created_at
+    } : null;
+  } catch (error) {
+    console.error('Error adding investment:', error);
+    return null;
+  }
+};
+
+export const updateInvestment = async (id: string, updates: Partial<Investment>): Promise<Investment | null> => {
+  try {
+    // Convert camelCase to snake_case
+    const dbUpdates: any = {};
+    if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.platform !== undefined) dbUpdates.platform = updates.platform;
+    if (updates.quantity !== undefined) dbUpdates.quantity = updates.quantity;
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+
+    const { data, error } = await supabase
+      .from('investments')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Convert snake_case back to camelCase
+    return data ? {
+      id: data.id,
+      amount: data.amount,
+      description: data.description,
+      category: data.category,
+      platform: data.platform,
+      quantity: data.quantity,
+      date: data.date,
+      userId: data.user_id,
+      createdAt: data.created_at
+    } : null;
+  } catch (error) {
+    console.error('Error updating investment:', error);
+    return null;
+  }
+};
+
+export const deleteInvestment = async (id: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.from('investments').delete().eq('id', id);
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error deleting investment:', error);
+    return false;
+  }
 };
