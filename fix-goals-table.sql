@@ -1,5 +1,5 @@
 -- ============================================
--- Fix Goals Table - Recriar com estrutura correta
+-- Fix Goals Table - Metas compartilhadas entre casal
 -- Execute no Supabase SQL Editor
 -- ============================================
 
@@ -7,6 +7,8 @@
 DROP TABLE IF EXISTS public.goals CASCADE;
 
 -- 2. Criar tabela goals com estrutura correta
+-- contributions JSONB guarda os IDs de ambos os parceiros como chaves
+-- Ex: { "uuid-user-1": 150.00, "uuid-user-2": 200.00 }
 CREATE TABLE public.goals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
@@ -23,7 +25,11 @@ CREATE INDEX idx_goals_created_at ON public.goals(created_at DESC);
 -- 4. Habilitar RLS
 ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 
--- 5. Criar políticas RLS
+-- 5. Criar políticas RLS (compartilhadas via contributions)
+-- Se o user ID estiver como chave no JSONB, ele tem acesso
+-- Como ambos os parceiros são adicionados ao criar a meta,
+-- os dois conseguem ver/editar/deletar as mesmas metas
+
 CREATE POLICY "Users can view goals they contribute to"
   ON public.goals FOR SELECT
   USING (contributions ? auth.uid()::text);
@@ -43,4 +49,4 @@ CREATE POLICY "Users can delete goals they contribute to"
 -- 6. Recarregar schema cache
 NOTIFY pgrst, 'reload schema';
 
--- ✅ Pronto! Tabela goals recriada com colunas corretas.
+-- Pronto! Tabela goals recriada com suporte a metas compartilhadas.

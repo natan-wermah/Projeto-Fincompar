@@ -355,11 +355,16 @@ const App: React.FC = () => {
       return;
     }
 
+    const contributions: Record<string, number> = { [user.id]: 0 };
+    if (partner?.id) {
+      contributions[partner.id] = 0;
+    }
+
     const newGoal: Omit<Goal, 'id' | 'createdAt'> = {
       name: name.trim(),
       targetAmount,
       currentAmount: 0,
-      contributions: { [user.id]: 0 },
+      contributions,
     };
 
     try {
