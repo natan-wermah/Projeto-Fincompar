@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Transaction, Goal, User, EducationalContent, Category, generateId, Notification as NotificationType } from './types';
+import { Transaction, Goal, User, EducationalContent, Category, Investment, InvestmentCategory, generateId, Notification as NotificationType } from './types';
 import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
 import { NotificationContainer } from './components/Notification';
@@ -13,7 +13,7 @@ import {
   Settings, Bell, CreditCard, Sparkles, Trash2
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
-import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from './constants';
+import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
 import { useDebounce } from './hooks/useDebounce';
 import { supabase } from './supabaseClient';
 import {
@@ -22,6 +22,9 @@ import {
   getGoals,
   addGoal as addGoalDB,
   updateGoal as updateGoalDB,
+  getInvestments,
+  addInvestment as addInvestmentDB,
+  deleteInvestment as deleteInvestmentDB,
 } from './services/supabaseService';
 
 const INITIAL_USER: User = {
@@ -64,6 +67,7 @@ const App: React.FC = () => {
   const [partner, setPartner] = useState<User>(INITIAL_PARTNER);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [investments, setInvestments] = useState<Investment[]>([]);
   const [aiSummary, setAiSummary] = useState<string>('Analisando seus hábitos do mês...');
   const [showSummary, setShowSummary] = useState(false);
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
@@ -81,6 +85,8 @@ const App: React.FC = () => {
     return saved === 'true';
   });
   const [showChartModal, setShowChartModal] = useState<'income' | 'expense' | null>(null);
+  const [showInvestmentsModal, setShowInvestmentsModal] = useState(false);
+  const [showAddInvestmentModal, setShowAddInvestmentModal] = useState(false);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -117,18 +123,20 @@ const App: React.FC = () => {
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
   const balance = totalIncome - totalExpense;
-  const totalInvested = goals.reduce((acc, curr) => acc + curr.currentAmount, 0);
+  const totalInvested = investments.reduce((acc, curr) => acc + curr.amount, 0);
 
   const loadUserData = useCallback(async () => {
     if (!user.id || !isAuthenticated) return;
     setIsLoadingData(true);
     try {
-      const [transactionsData, goalsData] = await Promise.all([
+      const [transactionsData, goalsData, investmentsData] = await Promise.all([
         getTransactions(user.id),
         getGoals(user.id),
+        getInvestments(user.id),
       ]);
       setTransactions(transactionsData);
       setGoals(goalsData);
+      setInvestments(investmentsData);
     } catch (error) {
       addNotification('Erro ao carregar dados', 'error');
     } finally {
@@ -206,6 +214,7 @@ const App: React.FC = () => {
       setActiveTab('dashboard');
       setTransactions([]);
       setGoals([]);
+      setInvestments([]);
       setUser(null);
       addNotification('Logout realizado com sucesso', 'success');
     } catch (error) {
@@ -376,6 +385,74 @@ const App: React.FC = () => {
       }
     } catch (error) {
       addNotification('Erro ao adicionar meta', 'error');
+    }
+  };
+
+  const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+
+    const amount = parseFloat(formData.get('amount') as string);
+    const description = formData.get('description') as string;
+    const platform = formData.get('platform') as string;
+    const quantityStr = formData.get('quantity') as string;
+    const quantity = quantityStr && quantityStr.trim() !== '' ? parseFloat(quantityStr) : undefined;
+
+    // Validações
+    if (!description || description.trim().length === 0) {
+      addNotification('Por favor, adicione uma descrição do investimento', 'warning');
+      return;
+    }
+
+    if (!platform || platform.trim().length === 0) {
+      addNotification('Por favor, informe a plataforma usada', 'warning');
+      return;
+    }
+
+    if (isNaN(amount) || amount <= 0) {
+      addNotification('Por favor, insira um valor válido', 'warning');
+      return;
+    }
+
+    if (amount > 10000000) {
+      addNotification('Valor muito alto. Máximo: R$ 10.000.000', 'warning');
+      return;
+    }
+
+    const newInvestment: Omit<Investment, 'id' | 'createdAt'> = {
+      amount,
+      description: description.trim(),
+      category: formData.get('category') as InvestmentCategory,
+      platform: platform.trim(),
+      quantity,
+      date: formData.get('date') as string,
+      userId: user.id,
+    };
+
+    try {
+      let savedInvestment: Investment | null = null;
+
+      // Demo mode: save locally only
+      if (user?.email === 'demo@fincompar.com') {
+        savedInvestment = {
+          ...newInvestment,
+          id: generateId(),
+          createdAt: new Date().toISOString()
+        };
+      } else {
+        // Real mode: save to Supabase
+        savedInvestment = await addInvestmentDB(newInvestment);
+      }
+
+      if (savedInvestment) {
+        setInvestments([savedInvestment, ...investments]);
+        setShowAddInvestmentModal(false);
+        addNotification('Investimento adicionado com sucesso!', 'success');
+      } else {
+        addNotification('Erro ao salvar investimento', 'error');
+      }
+    } catch (error) {
+      addNotification('Erro ao adicionar investimento', 'error');
     }
   };
 
@@ -657,7 +734,7 @@ const App: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setActiveTab('goals')}
+            onClick={() => setShowInvestmentsModal(true)}
             className="w-full bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
           >
             <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
@@ -1428,6 +1505,262 @@ const App: React.FC = () => {
               data={getChartData(showChartModal)}
               title={showChartModal === 'income' ? 'Entradas' : 'Saídas'}
             />
+          </div>
+        </div>
+      )}
+
+      {showInvestmentsModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp max-h-[85vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
+
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 p-4 rounded-3xl text-yellow-600 dark:text-yellow-400">
+                  <Wallet size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">
+                    Investimentos
+                  </h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                    Total: R$ {totalInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInvestmentsModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={24} className="text-gray-400 dark:text-gray-500" />
+              </button>
+            </div>
+
+            <button
+              onClick={() => {
+                setShowInvestmentsModal(false);
+                setShowAddInvestmentModal(true);
+              }}
+              className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 dark:shadow-yellow-900/30 active:scale-95 transition-all mb-6 flex items-center justify-center gap-2"
+            >
+              <Plus size={20} />
+              Novo Investimento
+            </button>
+
+            <div className="space-y-4">
+              {investments.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-400 dark:text-gray-500 font-bold mb-2">Nenhum investimento ainda</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">Comece a investir e acompanhe seu patrimônio!</p>
+                </div>
+              ) : (
+                (() => {
+                  // Agrupar investimentos por descrição
+                  const grouped = investments.reduce((acc, inv) => {
+                    if (!acc[inv.description]) {
+                      acc[inv.description] = {
+                        description: inv.description,
+                        category: inv.category,
+                        totalAmount: 0,
+                        totalQuantity: 0,
+                        count: 0,
+                        icon: INVESTMENT_CATEGORIES.find(c => c.name === inv.category)?.icon || '💰',
+                      };
+                    }
+                    acc[inv.description].totalAmount += inv.amount;
+                    acc[inv.description].totalQuantity += inv.quantity || 0;
+                    acc[inv.description].count += 1;
+                    return acc;
+                  }, {} as Record<string, { description: string; category: string; totalAmount: number; totalQuantity: number; count: number; icon: string }>);
+
+                  return Object.values(grouped).map((item, index) => (
+                    <div
+                      key={index}
+                      className="bg-gray-50 dark:bg-gray-700/50 rounded-2xl p-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <span className="text-2xl flex-shrink-0">{item.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-gray-800 dark:text-white truncate">{item.description}</p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase">
+                              {item.category} • {item.count} {item.count === 1 ? 'aporte' : 'aportes'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0 ml-3">
+                          <p className="font-black text-yellow-600 dark:text-yellow-400">
+                            R$ {item.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </p>
+                          {item.totalQuantity > 0 && (
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold">
+                              {item.totalQuantity.toLocaleString('pt-BR', { maximumFractionDigits: 4 })} cotas
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddInvestmentModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp max-h-[85vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
+
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 p-4 rounded-3xl text-yellow-600 dark:text-yellow-400">
+                  <TrendingUp size={32} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">
+                    Novo Investimento
+                  </h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                    Registre seu aporte
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAddInvestmentModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={24} className="text-gray-400 dark:text-gray-500" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddInvestment} className="space-y-6">
+              <div>
+                <label htmlFor="investmentAmount" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Valor Investido
+                </label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-600 font-black text-xl" aria-hidden="true">
+                    R$
+                  </span>
+                  <input
+                    id="investmentAmount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max="10000000"
+                    required
+                    autoFocus
+                    aria-label="Valor investido em reais"
+                    className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-[2rem] py-6 pl-16 pr-6 focus:ring-4 focus:ring-yellow-100 dark:focus:ring-yellow-900/50 font-black text-3xl text-yellow-600 dark:text-yellow-400 outline-none"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="investmentDescription" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Descrição (Nome do Ativo)
+                </label>
+                <input
+                  id="investmentDescription"
+                  name="description"
+                  type="text"
+                  required
+                  maxLength={100}
+                  placeholder="Ex: PETR4, Bitcoin, Tesouro Selic 2030"
+                  aria-label="Nome do ativo"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentCategory" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Categoria
+                </label>
+                <select
+                  id="investmentCategory"
+                  name="category"
+                  aria-label="Categoria do investimento"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none appearance-none text-gray-900 dark:text-white"
+                >
+                  {INVESTMENT_CATEGORIES.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.icon} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="investmentPlatform" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Plataforma
+                </label>
+                <input
+                  id="investmentPlatform"
+                  name="platform"
+                  type="text"
+                  required
+                  maxLength={50}
+                  placeholder="Ex: XP, Rico, Binance, NuInvest"
+                  aria-label="Plataforma utilizada"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentQuantity" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Quantidade (Opcional)
+                </label>
+                <input
+                  id="investmentQuantity"
+                  name="quantity"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  placeholder="Ex: 10 (ações, cotas, etc)"
+                  aria-label="Quantidade de cotas ou ações"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Data do Investimento
+                </label>
+                <input
+                  id="investmentDate"
+                  name="date"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  aria-label="Data do investimento"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddInvestmentModal(false)}
+                  aria-label="Cancelar"
+                  className="flex-1 py-5 bg-gray-100 dark:bg-gray-700 rounded-[2rem] font-black text-gray-500 dark:text-gray-300 uppercase text-xs active:bg-gray-200 dark:active:bg-gray-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  aria-label="Salvar investimento"
+                  className="flex-[2] bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-yellow-100 dark:shadow-yellow-900/30 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                >
+                  Salvar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
