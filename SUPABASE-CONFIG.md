@@ -94,12 +94,97 @@ Deve mostrar políticas para:
 
 ---
 
+## 📧 E-mail Não Está Chegando?
+
+### Por que isso acontece:
+
+O Supabase **não envia e-mails por padrão**. Ele precisa de configuração SMTP!
+
+### Solução 1: Desabilitar Confirmação (RECOMENDADO para DEV)
+
+**Passo a passo detalhado:**
+
+1. Acesse: https://supabase.com/dashboard
+2. Selecione seu projeto
+3. Vá em: **Authentication** → **Providers** (ou **Email**)
+4. Procure por: **"Confirm email"** ou **"Enable email confirmations"**
+5. **DESMARQUE** essa opção: ☐ Enable email confirmations
+6. Scroll até o final e clique em **"Save"**
+7. Pronto! Agora pode criar conta e logar imediatamente
+
+**Ou acesse diretamente:**
+```
+https://supabase.com/dashboard/project/[SEU_PROJECT_ID]/auth/providers
+```
+
+### Solução 2: Configurar SMTP (Para PRODUÇÃO)
+
+Se você quer **realmente enviar e-mails**, configure um provedor SMTP:
+
+#### Opção A: Gmail (Grátis)
+
+1. No Supabase: **Settings** → **Auth** → **SMTP Settings**
+2. Configure:
+   - **Host:** smtp.gmail.com
+   - **Port:** 587
+   - **User:** seu-email@gmail.com
+   - **Password:** [senha de app - veja abaixo]
+   - **Sender:** seu-email@gmail.com
+
+3. **Criar Senha de App no Gmail:**
+   - Acesse: https://myaccount.google.com/apppasswords
+   - Selecione "Mail" e seu dispositivo
+   - Copie a senha gerada
+   - Use essa senha no SMTP Password
+
+#### Opção B: SendGrid (100 emails/dia grátis)
+
+1. Crie conta: https://sendgrid.com/free
+2. Crie uma API Key em Settings → API Keys
+3. Configure no Supabase:
+   - **Host:** smtp.sendgrid.net
+   - **Port:** 587
+   - **User:** apikey
+   - **Password:** [sua API key do SendGrid]
+
+#### Opção C: Resend (Mais moderno)
+
+1. Crie conta: https://resend.com
+2. Pegue sua API Key
+3. Configure no Supabase com os dados do Resend
+
+#### Opção D: Mailtrap (Apenas para TESTES)
+
+1. Crie conta: https://mailtrap.io
+2. Pegue as credenciais SMTP da inbox de teste
+3. Configure no Supabase
+4. E-mails irão para o Mailtrap, não para caixa real
+
+---
+
 ## 📝 Resumo
 
 Para fazer login funcionar:
 
-1. **Desenvolvimento**: Desabilite confirmação de e-mail no Supabase
-2. **Produção**: Confirme o e-mail recebido
+1. **Desenvolvimento**: Desabilite confirmação de e-mail no Supabase ✅
+2. **Produção**: Configure SMTP + Confirmação de e-mail
 3. **Testes rápidos**: Use o Modo Demo
 
 O código já foi atualizado para mostrar mensagens mais claras sobre o erro!
+
+---
+
+## 🎯 Checklist Rápido
+
+- [ ] Desabilitei confirmação de e-mail no Supabase
+- [ ] Criei nova conta de teste
+- [ ] Consegui fazer login sem confirmar e-mail
+- [ ] Tudo funcionando! 🎉
+
+OU (para produção):
+
+- [ ] Configurei SMTP (Gmail, SendGrid, etc)
+- [ ] Testei envio de e-mail
+- [ ] E-mail chegou na caixa de entrada
+- [ ] Confirmei e-mail e fiz login
+- [ ] Tudo funcionando! 🎉
