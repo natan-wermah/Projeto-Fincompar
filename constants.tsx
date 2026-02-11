@@ -49,3 +49,17 @@ export const INCOME_CATEGORIES: { name: string; icon: string }[] = [
 
 // Manter compatibilidade com código antigo (por enquanto)
 export const CATEGORIES = EXPENSE_CATEGORIES;
+
+// Categorias para INVESTIMENTOS
+export const INVESTMENT_CATEGORIES: { name: string; icon: string }[] = [
+  { name: 'Ações', icon: '📈' },
+  { name: 'FII', icon: '🏢' },
+  { name: 'ETF', icon: '📊' },
+  { name: 'Cripto', icon: '₿' },
+  { name: 'Renda Fixa', icon: '💵' },
+  { name: 'Tesouro Direto', icon: '🏛️' },
+  { name: 'CDB', icon: '🏦' },
+  { name: 'LCI/LCA', icon: '🏡' },
+  { name: 'Fundos', icon: '💼' },
+  { name: 'Outros', icon: '📦' }
+];

@@ -8,6 +8,9 @@ export type IncomeCategory = 'Trabalho Principal' | 'Clientes' | 'Freelas' | 'Ou
 // Categoria pode ser qualquer uma das duas
 export type Category = ExpenseCategory | IncomeCategory;
 
+// Categorias de investimentos
+export type InvestmentCategory = 'Ações' | 'FII' | 'ETF' | 'Cripto' | 'Renda Fixa' | 'Tesouro Direto' | 'CDB' | 'LCI/LCA' | 'Fundos' | 'Outros';
+
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
 export interface Transaction {
@@ -29,6 +32,18 @@ export interface Goal {
   contributions: Record<string, number>;
   createdAt?: string; // ISO timestamp
   deadline?: string; // ISO 8601 format: YYYY-MM-DD
+}
+
+export interface Investment {
+  id: string;
+  amount: number;
+  description: string; // Nome do ativo (PETR4, Bitcoin, etc)
+  category: InvestmentCategory;
+  platform: string; // XP, Rico, Binance, etc
+  quantity?: number; // Quantidade de cotas/ações (opcional)
+  date: string; // ISO 8601 format: YYYY-MM-DD
+  userId: string;
+  createdAt?: string; // ISO timestamp
 }
 
 export interface User {
