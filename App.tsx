@@ -76,7 +76,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | null>(null);
+  const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | 'investment' | null>(null);
   const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'year' | 'custom'>('month');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
@@ -86,7 +86,6 @@ const App: React.FC = () => {
   });
   const [showChartModal, setShowChartModal] = useState<'income' | 'expense' | null>(null);
   const [showInvestmentsModal, setShowInvestmentsModal] = useState(false);
-  const [showAddInvestmentModal, setShowAddInvestmentModal] = useState(false);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -446,7 +445,8 @@ const App: React.FC = () => {
 
       if (savedInvestment) {
         setInvestments([savedInvestment, ...investments]);
-        setShowAddInvestmentModal(false);
+        setActiveTab('dashboard');
+        setTransactionTypeSelected(null); // Reset transaction type selection
         addNotification('Investimento adicionado com sucesso!', 'success');
       } else {
         addNotification('Erro ao salvar investimento', 'error');
@@ -878,12 +878,170 @@ const App: React.FC = () => {
                 <ChevronRight size={28} className="opacity-60 group-hover:opacity-100 transition-opacity" />
               </div>
             </button>
+
+            {/* Botão Investimento */}
+            <button
+              onClick={() => setTransactionTypeSelected('investment')}
+              className="w-full bg-gradient-to-br from-yellow-500 to-amber-600 text-white p-8 rounded-[2.5rem] shadow-xl shadow-yellow-200 dark:shadow-yellow-900/30 active:scale-95 transition-all group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="bg-white/20 p-4 rounded-2xl">
+                    <Wallet size={32} className="text-white" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="text-2xl font-black">Investimento</h3>
+                    <p className="text-sm font-medium opacity-90">Aportes e aplicações</p>
+                  </div>
+                </div>
+                <ChevronRight size={28} className="opacity-60 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </button>
           </div>
         </div>
       );
     }
 
-    // Step 2: Show form with appropriate categories
+    // Step 2: Show form based on selected type
+    if (transactionTypeSelected === 'investment') {
+      // Formulário de Investimento
+      return (
+        <div className="animate-slideUp pb-10">
+          <div className="flex items-center gap-4 mb-8">
+            <button
+              onClick={() => setTransactionTypeSelected(null)}
+              aria-label="Voltar"
+              className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full active:scale-95 transition-all text-gray-800 dark:text-white"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white">Novo Investimento</h2>
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                Registre seu aporte
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleAddInvestment} className="space-y-6">
+            <div className="bg-white dark:bg-gray-800 p-6 rounded-[2.5rem] shadow-sm border border-gray-100 dark:border-gray-700 space-y-6">
+              <div>
+                <label htmlFor="investmentAmount" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-4">
+                  Valor Investido
+                </label>
+                <div className="flex items-center gap-3 border-b-2 border-yellow-100 dark:border-yellow-900 pb-2 focus-within:border-yellow-600 transition-all">
+                  <span className="text-2xl font-black text-gray-300 dark:text-gray-600" aria-hidden="true">R$</span>
+                  <input
+                    id="investmentAmount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max="10000000"
+                    required
+                    autoFocus
+                    aria-label="Valor investido em reais"
+                    className="w-full bg-transparent border-0 outline-none text-4xl font-black text-yellow-600 dark:text-yellow-400 placeholder:text-gray-100 dark:placeholder:text-gray-700"
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="investmentDescription" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Descrição (Nome do Ativo)
+                </label>
+                <input
+                  id="investmentDescription"
+                  name="description"
+                  type="text"
+                  required
+                  maxLength={100}
+                  placeholder="Ex: PETR4, Bitcoin, Tesouro Selic 2030"
+                  aria-label="Nome do ativo"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentCategory" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Categoria
+                </label>
+                <select
+                  id="investmentCategory"
+                  name="category"
+                  aria-label="Categoria do investimento"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none appearance-none text-gray-900 dark:text-white"
+                >
+                  {INVESTMENT_CATEGORIES.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.icon} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="investmentPlatform" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Plataforma
+                </label>
+                <input
+                  id="investmentPlatform"
+                  name="platform"
+                  type="text"
+                  required
+                  maxLength={50}
+                  placeholder="Ex: XP, Rico, Binance, NuInvest"
+                  aria-label="Plataforma utilizada"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentQuantity" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Quantidade (Opcional)
+                </label>
+                <input
+                  id="investmentQuantity"
+                  name="quantity"
+                  type="number"
+                  step="0.0001"
+                  min="0"
+                  placeholder="Ex: 10 (ações, cotas, etc)"
+                  aria-label="Quantidade de cotas ou ações"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="investmentDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Data do Investimento
+                </label>
+                <input
+                  id="investmentDate"
+                  name="date"
+                  type="date"
+                  required
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  aria-label="Data do investimento"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              aria-label="Salvar investimento"
+              className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-yellow-200 dark:shadow-yellow-900/30 active:scale-95 transition-all text-lg tracking-tight"
+            >
+              Salvar Investimento
+            </button>
+          </form>
+        </div>
+      );
+    }
+
+    // Formulário de Transação (Gasto ou Ganho)
     const categories = transactionTypeSelected === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
     const typeLabel = transactionTypeSelected === 'expense' ? 'Gasto' : 'Ganho';
     const typeColor = transactionTypeSelected === 'expense' ? 'red' : 'green';
@@ -1537,17 +1695,6 @@ const App: React.FC = () => {
               </button>
             </div>
 
-            <button
-              onClick={() => {
-                setShowInvestmentsModal(false);
-                setShowAddInvestmentModal(true);
-              }}
-              className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-yellow-200 dark:shadow-yellow-900/30 active:scale-95 transition-all mb-6 flex items-center justify-center gap-2"
-            >
-              <Plus size={20} />
-              Novo Investimento
-            </button>
-
             <div className="space-y-4">
               {investments.length === 0 ? (
                 <div className="text-center py-12">
@@ -1605,162 +1752,6 @@ const App: React.FC = () => {
                 })()
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {showAddInvestmentModal && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
-          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp max-h-[85vh] overflow-y-auto">
-            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
-
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-4">
-                <div className="bg-yellow-100 dark:bg-yellow-900/30 p-4 rounded-3xl text-yellow-600 dark:text-yellow-400">
-                  <TrendingUp size={32} />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">
-                    Novo Investimento
-                  </h2>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
-                    Registre seu aporte
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowAddInvestmentModal(false)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                aria-label="Fechar"
-              >
-                <X size={24} className="text-gray-400 dark:text-gray-500" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddInvestment} className="space-y-6">
-              <div>
-                <label htmlFor="investmentAmount" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Valor Investido
-                </label>
-                <div className="relative">
-                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-600 font-black text-xl" aria-hidden="true">
-                    R$
-                  </span>
-                  <input
-                    id="investmentAmount"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max="10000000"
-                    required
-                    autoFocus
-                    aria-label="Valor investido em reais"
-                    className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-[2rem] py-6 pl-16 pr-6 focus:ring-4 focus:ring-yellow-100 dark:focus:ring-yellow-900/50 font-black text-3xl text-yellow-600 dark:text-yellow-400 outline-none"
-                    placeholder="0,00"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="investmentDescription" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Descrição (Nome do Ativo)
-                </label>
-                <input
-                  id="investmentDescription"
-                  name="description"
-                  type="text"
-                  required
-                  maxLength={100}
-                  placeholder="Ex: PETR4, Bitcoin, Tesouro Selic 2030"
-                  aria-label="Nome do ativo"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="investmentCategory" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Categoria
-                </label>
-                <select
-                  id="investmentCategory"
-                  name="category"
-                  aria-label="Categoria do investimento"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none appearance-none text-gray-900 dark:text-white"
-                >
-                  {INVESTMENT_CATEGORIES.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.icon} {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="investmentPlatform" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Plataforma
-                </label>
-                <input
-                  id="investmentPlatform"
-                  name="platform"
-                  type="text"
-                  required
-                  maxLength={50}
-                  placeholder="Ex: XP, Rico, Binance, NuInvest"
-                  aria-label="Plataforma utilizada"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="investmentQuantity" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Quantidade (Opcional)
-                </label>
-                <input
-                  id="investmentQuantity"
-                  name="quantity"
-                  type="number"
-                  step="0.0001"
-                  min="0"
-                  placeholder="Ex: 10 (ações, cotas, etc)"
-                  aria-label="Quantidade de cotas ou ações"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="investmentDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Data do Investimento
-                </label>
-                <input
-                  id="investmentDate"
-                  name="date"
-                  type="date"
-                  required
-                  defaultValue={new Date().toISOString().split('T')[0]}
-                  aria-label="Data do investimento"
-                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowAddInvestmentModal(false)}
-                  aria-label="Cancelar"
-                  className="flex-1 py-5 bg-gray-100 dark:bg-gray-700 rounded-[2rem] font-black text-gray-500 dark:text-gray-300 uppercase text-xs active:bg-gray-200 dark:active:bg-gray-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  aria-label="Salvar investimento"
-                  className="flex-[2] bg-gradient-to-r from-yellow-500 to-amber-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-yellow-100 dark:shadow-yellow-900/30 active:scale-95 transition-all text-sm uppercase tracking-widest"
-                >
-                  Salvar
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}
