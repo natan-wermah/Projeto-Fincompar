@@ -3,6 +3,12 @@
 -- Execute no Supabase SQL Editor
 -- ============================================
 
+-- 0. Remover politicas antigas que causam recursao
+DROP POLICY IF EXISTS "Partners can view each other" ON public.users;
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.users;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.users;
+
 -- 1. Criar tabela de perfis (espelha auth.users com dados extras)
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -16,40 +22,18 @@ CREATE TABLE IF NOT EXISTS public.users (
 -- 2. Habilitar RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
--- 3. Políticas RLS
--- Cada usuario pode ver seu proprio perfil
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can view their own profile' AND tablename = 'users') THEN
-    CREATE POLICY "Users can view their own profile" ON public.users
-      FOR SELECT USING (auth.uid() = id);
-  END IF;
-END $$;
+-- 3. Politicas RLS (sem recursao!)
+-- Qualquer usuario logado pode ver perfis (nome, email, avatar - nada sensivel)
+CREATE POLICY "Authenticated users can view profiles" ON public.users
+  FOR SELECT USING (auth.role() = 'authenticated');
 
--- Cada usuario pode atualizar seu proprio perfil
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update their own profile' AND tablename = 'users') THEN
-    CREATE POLICY "Users can update their own profile" ON public.users
-      FOR UPDATE USING (auth.uid() = id);
-  END IF;
-END $$;
+-- Cada usuario so pode editar seu proprio perfil
+CREATE POLICY "Users can update their own profile" ON public.users
+  FOR UPDATE USING (auth.uid() = id);
 
--- Cada usuario pode inserir seu proprio perfil
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert their own profile' AND tablename = 'users') THEN
-    CREATE POLICY "Users can insert their own profile" ON public.users
-      FOR INSERT WITH CHECK (auth.uid() = id);
-  END IF;
-END $$;
-
--- Parceiros podem ver o perfil um do outro
-DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Partners can view each other' AND tablename = 'users') THEN
-    CREATE POLICY "Partners can view each other" ON public.users
-      FOR SELECT USING (
-        id IN (SELECT partner_id FROM public.users WHERE id = auth.uid())
-      );
-  END IF;
-END $$;
+-- Cada usuario so pode inserir seu proprio perfil
+CREATE POLICY "Users can insert their own profile" ON public.users
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- 4. Trigger para criar perfil automaticamente no signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -85,4 +69,5 @@ ON CONFLICT (id) DO NOTHING;
 -- 6. Recarregar schema
 NOTIFY pgrst, 'reload schema';
 
--- Pronto! Tabela users criada e populada com usuarios existentes.
+-- Pronto! Tabela users criada e populada.
+-- Depois execute: setup-partner-invitations.sql
