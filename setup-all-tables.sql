@@ -40,7 +40,7 @@ CREATE TABLE public.transactions (
   date DATE NOT NULL,
   category TEXT NOT NULL CHECK (category IN (
     -- Categorias de Gastos
-    'Alimentação', 'Moradia', 'Lazer', 'Transporte', 'Saúde', 'Educação', 'Outros',
+    'Alimentação', 'Moradia', 'Lazer', 'Transporte', 'Saúde', 'Educação', 'Cartão', 'Outros',
     -- Categorias de Ganhos
     'Trabalho Principal', 'Clientes', 'Freelas'
   )),

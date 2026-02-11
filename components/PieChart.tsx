@@ -65,14 +65,29 @@ const PieChart: React.FC<PieChartProps> = ({ data, title }) => {
       {/* Gráfico de Pizza */}
       <div className="flex justify-center">
         <svg width="200" height="200" viewBox="0 0 200 200" className="transform -rotate-90">
-          {slices.map((slice, index) => (
-            <path
-              key={index}
-              d={createArc(slice.startAngle, slice.angle)}
-              fill={slice.color}
-              className="transition-all duration-300 hover:opacity-80"
-            />
-          ))}
+          {slices.map((slice, index) => {
+            // Se houver apenas 1 categoria (100%), desenhar círculo completo
+            if (slice.angle >= 359.9) {
+              return (
+                <circle
+                  key={index}
+                  cx="100"
+                  cy="100"
+                  r="80"
+                  fill={slice.color}
+                  className="transition-all duration-300 hover:opacity-80"
+                />
+              );
+            }
+            return (
+              <path
+                key={index}
+                d={createArc(slice.startAngle, slice.angle)}
+                fill={slice.color}
+                className="transition-all duration-300 hover:opacity-80"
+              />
+            );
+          })}
           {/* Círculo branco no centro para efeito donut */}
           <circle cx="100" cy="100" r="50" fill="white" className="dark:fill-gray-800" />
         </svg>

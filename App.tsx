@@ -234,7 +234,7 @@ const App: React.FC = () => {
       amount,
       description: description.trim(),
       category: formData.get('category') as Category,
-      date: new Date().toISOString().split('T')[0],
+      date: formData.get('date') as string,
       payerId: user.id,
       type: formData.get('type') as 'income' | 'expense'
     };
@@ -593,25 +593,25 @@ const App: React.FC = () => {
             </div>
           ) : (
             filteredTransactions.map(t => (
-              <div key={t.id} className="bg-white dark:bg-gray-800 p-4 rounded-3xl flex items-center justify-between shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
+              <div key={t.id} className="bg-white dark:bg-gray-800 p-4 rounded-3xl flex items-center justify-between gap-3 shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-12 h-12 flex-shrink-0 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
                     t.type === 'income' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'
                   }`}>
                     {(t.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).find(c => c.name === t.category)?.icon || '💰'}
                   </div>
-                  <div>
-                    <p className="font-bold text-gray-800 dark:text-white text-sm">{t.description}</p>
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{t.description}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest truncate">
                       {t.category} • {new Date(t.date).toLocaleDateString('pt-BR')}
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={`font-black text-base ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <div className="text-right flex-shrink-0">
+                  <p className={`font-black text-sm whitespace-nowrap ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                     {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
                   </p>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">
                     {t.payerId === 'user_1' || t.payerId === 'demo-user-id' ? user.name.split(' ')[0] : partner.name.split(' ')[0]}
                   </p>
                 </div>
@@ -874,6 +874,21 @@ const App: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="transactionDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                Data
+              </label>
+              <input
+                id="transactionDate"
+                name="date"
+                type="date"
+                required
+                defaultValue={new Date().toISOString().split('T')[0]}
+                aria-label="Data da transação"
+                className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
+              />
             </div>
           </div>
 

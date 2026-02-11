@@ -35,6 +35,7 @@ export const EXPENSE_CATEGORIES: { name: string; icon: string }[] = [
   { name: 'Transporte', icon: '🚗' },
   { name: 'Saúde', icon: '🏥' },
   { name: 'Educação', icon: '📚' },
+  { name: 'Cartão', icon: '💳' },
   { name: 'Outros', icon: '📦' }
 ];
 
