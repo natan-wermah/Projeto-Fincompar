@@ -11,7 +11,7 @@ import {
   ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
   Settings, Bell, CreditCard, Sparkles, Trash2, Compass, ArrowLeft,
-  Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2
+  Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2, Camera
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
@@ -34,6 +34,8 @@ import {
   cancelPartnerInvitation,
   getPartnerProfile,
   getUserProfile,
+  uploadAvatar,
+  updateUserProfile,
 } from './services/supabaseService';
 
 const INITIAL_USER: User = {
@@ -82,6 +84,9 @@ const App: React.FC = () => {
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [showRemovePartnerConfirmation, setShowRemovePartnerConfirmation] = useState(false);
   const [showInvitePartner, setShowInvitePartner] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -580,7 +585,25 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateUser = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      addNotification('Imagem muito grande. Máximo: 2MB', 'warning');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      addNotification('Selecione uma imagem válida', 'warning');
+      return;
+    }
+
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const userName = formData.get('userName') as string;
@@ -597,9 +620,34 @@ const App: React.FC = () => {
       return;
     }
 
-    setUser((prev) => ({ ...prev, name: userName.trim(), email: userEmail.trim() }));
-    setIsEditingUser(false);
-    addNotification('Perfil atualizado com sucesso!', 'success');
+    setIsUploadingAvatar(true);
+    try {
+      let newAvatarUrl = user.avatar;
+
+      // Upload do avatar se selecionou uma foto nova
+      if (avatarFile && user.email !== 'demo@fincompar.com') {
+        const url = await uploadAvatar(user.id, avatarFile);
+        if (url) newAvatarUrl = url;
+      }
+
+      // Salvar no banco (se nao for demo)
+      if (user.email !== 'demo@fincompar.com') {
+        await updateUserProfile(user.id, {
+          name: userName.trim(),
+          avatar: newAvatarUrl,
+        });
+      }
+
+      setUser((prev) => ({ ...prev, name: userName.trim(), email: userEmail.trim(), avatar: newAvatarUrl }));
+      setIsEditingUser(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      addNotification('Perfil atualizado com sucesso!', 'success');
+    } catch {
+      addNotification('Erro ao atualizar perfil', 'error');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   const handleUpdatePartner = (e: React.FormEvent<HTMLFormElement>) => {
@@ -1821,10 +1869,34 @@ const App: React.FC = () => {
               </div>
               <div>
                 <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Editar Perfil</h2>
-                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">Sincronização em Tempo Real</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">Atualize seus dados</p>
               </div>
             </div>
             <form onSubmit={handleUpdateUser} className="space-y-6">
+              <div className="flex flex-col items-center">
+                <div className="relative mb-3">
+                  <img
+                    src={avatarPreview || user.avatar}
+                    className="w-24 h-24 rounded-[2rem] border-4 border-purple-100 dark:border-purple-900/30 shadow-lg object-cover"
+                    alt="Avatar"
+                  />
+                  <label className="absolute -bottom-2 -right-2 bg-purple-600 text-white p-2.5 rounded-xl cursor-pointer active:scale-90 transition-all shadow-lg">
+                    <Camera size={16} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {avatarPreview && (
+                  <p className="text-xs text-green-500 dark:text-green-400 font-bold">Nova foto selecionada</p>
+                )}
+                {!avatarPreview && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold">Toque no icone para trocar a foto</p>
+                )}
+              </div>
               <input
                 name="userName"
                 type="text"
@@ -1846,14 +1918,15 @@ const App: React.FC = () => {
               />
               <button
                 type="submit"
+                disabled={isUploadingAvatar}
                 aria-label="Atualizar perfil"
-                className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+                className="w-full bg-purple-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                ATUALIZAR MEU PERFIL
+                {isUploadingAvatar ? <><Loader2 size={18} className="animate-spin" /> SALVANDO...</> : 'ATUALIZAR MEU PERFIL'}
               </button>
               <button
                 type="button"
-                onClick={() => setIsEditingUser(false)}
+                onClick={() => { setIsEditingUser(false); setAvatarFile(null); setAvatarPreview(null); }}
                 aria-label="Voltar"
                 className="w-full py-2 text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest"
               >

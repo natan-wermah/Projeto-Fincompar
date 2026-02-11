@@ -243,6 +243,30 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
   }
 };
 
+export const uploadAvatar = async (userId: string, file: File): Promise<string | null> => {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const filePath = `${userId}/avatar.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: true });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+    const avatarUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+    // Atualizar avatar no perfil do usuario
+    await supabase.from('users').update({ avatar: avatarUrl }).eq('id', userId);
+
+    return avatarUrl;
+  } catch (error) {
+    console.error('Error uploading avatar:', error);
+    return null;
+  }
+};
+
 export const getPartnerProfile = async (partnerId: string): Promise<User | null> => {
   if (!partnerId) return null;
   return getUserProfile(partnerId);
