@@ -1,5 +1,6 @@
 -- ============================================
 -- Setup Partner Invitations - Sistema de convites de casal
+-- IMPORTANTE: Execute setup-users-table.sql ANTES deste arquivo!
 -- Execute no Supabase SQL Editor
 -- ============================================
 
