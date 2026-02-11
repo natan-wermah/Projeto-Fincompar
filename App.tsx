@@ -33,6 +33,7 @@ import {
   rejectPartnerInvitation,
   cancelPartnerInvitation,
   getPartnerProfile,
+  getUserProfile,
 } from './services/supabaseService';
 
 const INITIAL_USER: User = {
@@ -293,13 +294,26 @@ const App: React.FC = () => {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
-        setUser({
+        // Buscar perfil de public.users (tem partner_id real)
+        const profile = await getUserProfile(authUser.id);
+
+        const currentUser: User = {
           id: authUser.id,
-          name: name || authUser.user_metadata?.name || 'Usuário',
-          email: authUser.email || email,
-          partnerId: authUser.user_metadata?.partner_id || null,
-          avatar: authUser.user_metadata?.avatar || INITIAL_USER.avatar,
-        });
+          name: profile?.name || name || authUser.user_metadata?.name || 'Usuário',
+          email: profile?.email || authUser.email || email,
+          partnerId: profile?.partnerId || null,
+          avatar: profile?.avatar || INITIAL_USER.avatar,
+        };
+        setUser(currentUser);
+
+        // Se tem parceiro vinculado, carregar dados do parceiro
+        if (currentUser.partnerId) {
+          const partnerData = await getPartnerProfile(currentUser.partnerId);
+          if (partnerData) {
+            setPartner(partnerData);
+          }
+        }
+
         setIsAuthenticated(true);
       }
     } catch (error) {
