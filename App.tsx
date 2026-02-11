@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
 import { NotificationContainer } from './components/Notification';
 import ConfigWarning from './components/ConfigWarning';
+import PieChart from './components/PieChart';
 import {
   TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText,
   ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
@@ -79,6 +80,7 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('fincompar-dark-mode');
     return saved === 'true';
   });
+  const [showChartModal, setShowChartModal] = useState<'income' | 'expense' | null>(null);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -438,6 +440,31 @@ const App: React.FC = () => {
   };
 
   // Filter transactions by period
+  // Processar dados para gráfico de pizza
+  const getChartData = (type: 'income' | 'expense') => {
+    const colors = type === 'income'
+      ? ['#10B981', '#059669', '#047857', '#065F46'] // Green shades
+      : ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#F59E0B', '#D97706']; // Red + Orange shades
+
+    const relevantTransactions = transactions.filter(t => t.type === type);
+    const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+
+    const categoryTotals = categories.map((cat, index) => {
+      const total = relevantTransactions
+        .filter(t => t.category === cat.name)
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      return {
+        category: cat.name,
+        value: total,
+        icon: cat.icon,
+        color: colors[index % colors.length]
+      };
+    }).filter(item => item.value > 0); // Apenas categorias com valores
+
+    return categoryTotals;
+  };
+
   const filterTransactionsByPeriod = () => {
     const now = new Date();
     let startDate: Date;
@@ -607,18 +634,24 @@ const App: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-8">
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+          <button
+            onClick={() => setShowChartModal('income')}
+            className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
+          >
             <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
               Entradas <span className="text-sm">📈</span>
             </p>
             <p className="font-bold text-lg text-green-300">R$ {totalIncome.toLocaleString('pt-BR')}</p>
-          </div>
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10">
+          </button>
+          <button
+            onClick={() => setShowChartModal('expense')}
+            className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-left active:scale-95 transition-all"
+          >
             <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
               Saídas <span className="text-sm">📉</span>
             </p>
             <p className="font-bold text-lg text-red-300">R$ {totalExpense.toLocaleString('pt-BR')}</p>
-          </div>
+          </button>
         </div>
       </div>
 
@@ -1327,6 +1360,46 @@ const App: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showChartModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp max-h-[85vh] overflow-y-auto">
+            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
+
+            <div className="flex items-center justify-between mb-8">
+              <div className="flex items-center gap-4">
+                <div className={`p-4 rounded-3xl ${
+                  showChartModal === 'income'
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                }`}>
+                  {showChartModal === 'income' ? <TrendingUp size={32} /> : <TrendingDown size={32} />}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">
+                    {showChartModal === 'income' ? 'Entradas' : 'Saídas'}
+                  </h2>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">
+                    Por Categoria
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowChartModal(null)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                aria-label="Fechar"
+              >
+                <X size={24} className="text-gray-400 dark:text-gray-500" />
+              </button>
+            </div>
+
+            <PieChart
+              data={getChartData(showChartModal)}
+              title={showChartModal === 'income' ? 'Entradas' : 'Saídas'}
+            />
           </div>
         </div>
       )}
