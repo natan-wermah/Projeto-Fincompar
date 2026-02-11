@@ -7,9 +7,11 @@ interface LayoutProps {
   activeTab: string;
   setActiveTab: (id: string) => void;
   title: string;
+  showProfileNotification?: boolean;
+  showGoalsNotification?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, title }) => {
+const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, title, showProfileNotification = false, showGoalsNotification = false }) => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 max-w-md mx-auto relative overflow-hidden shadow-2xl">
       {/* Header Estilo Mobile */}
@@ -31,28 +33,37 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTab, titl
 
       {/* Navegação Inferior (Abas Native) */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 dark:bg-gray-800/95 backdrop-blur-lg border-t border-gray-100 dark:border-gray-700 px-6 pt-3 pb-8 flex justify-between items-center z-40">
-        {NAVIGATION_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id)}
-            className={`flex flex-col items-center transition-all duration-200 active:scale-90 ${
-              activeTab === item.id ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-500'
-            }`}
-          >
-            <div className={`transition-transform duration-200 ${
-              item.id === 'add'
-                ? 'mb-6 -mt-12 bg-purple-600 text-white p-3 rounded-2xl shadow-xl shadow-purple-200 dark:shadow-purple-900/30 border-4 border-white dark:border-gray-800'
-                : activeTab === item.id ? 'scale-110' : ''
-            }`}>
-              {item.icon}
-            </div>
-            {item.label && (
-              <span className={`text-[10px] mt-1 font-bold ${activeTab === item.id ? 'opacity-100' : 'opacity-60'}`}>
-                {item.label}
-              </span>
-            )}
-          </button>
-        ))}
+        {NAVIGATION_ITEMS.map((item) => {
+          const showNotification =
+            (item.id === 'profile' && showProfileNotification) ||
+            (item.id === 'goals' && showGoalsNotification);
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`flex flex-col items-center transition-all duration-200 active:scale-90 ${
+                activeTab === item.id ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-500'
+              }`}
+            >
+              <div className={`relative transition-transform duration-200 ${
+                item.id === 'add'
+                  ? 'mb-6 -mt-12 bg-purple-600 text-white p-3 rounded-2xl shadow-xl shadow-purple-200 dark:shadow-purple-900/30 border-4 border-white dark:border-gray-800'
+                  : activeTab === item.id ? 'scale-110' : ''
+              }`}>
+                {item.icon}
+                {showNotification && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-gray-800 animate-pulse"></div>
+                )}
+              </div>
+              {item.label && (
+                <span className={`text-[10px] mt-1 font-bold ${activeTab === item.id ? 'opacity-100' : 'opacity-60'}`}>
+                  {item.label}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
     </div>
   );

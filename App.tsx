@@ -73,6 +73,7 @@ const App: React.FC = () => {
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
+  const [showRemovePartnerConfirmation, setShowRemovePartnerConfirmation] = useState(false);
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -1276,7 +1277,7 @@ const App: React.FC = () => {
 
       <div className="bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-green-100 dark:shadow-green-900/30">
          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-black text-xl flex items-center gap-2"><Heart size={22} fill="white" /> Parceria Ativa</h3>
+            <h3 className="font-black text-xl flex items-center gap-2"><Heart size={22} fill="white" /> Meu amor</h3>
             <Settings size={20} className="opacity-60" onClick={() => setIsEditingPartner(true)} />
          </div>
          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20">
@@ -1289,29 +1290,6 @@ const App: React.FC = () => {
          </div>
       </div>
 
-      <div className="space-y-4 pt-2">
-        <h4 className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest px-1">Dicas Fincompar</h4>
-        {EDUCATIONAL_CONTENT.map(content => (
-          <div key={content.id} className="bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center justify-between group active:bg-gray-50 dark:active:bg-gray-700 transition-colors">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl ${content.type === 'audio' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 dark:text-indigo-400' : 'bg-green-50 dark:bg-green-900/30 text-green-500 dark:text-green-400'}`}>
-                {content.type === 'audio' ? <Play size={20} /> : <FileText size={20} />}
-              </div>
-              <div>
-                <p className="font-bold text-gray-800 dark:text-white text-sm">{content.title}</p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-tight">{content.type === 'audio' ? 'Dica em áudio • 1min' : 'Texto curto • 2min'}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => content.type === 'audio' && playAudioTip(content.content)}
-              className="w-10 h-10 flex items-center justify-center text-gray-300 dark:text-gray-600 group-active:text-purple-600 dark:group-active:text-purple-400 transition-colors"
-            >
-              <ChevronRight size={22} />
-            </button>
-          </div>
-        ))}
-      </div>
-
       <button
         onClick={handleLogout}
         aria-label="Encerrar sessão"
@@ -1322,6 +1300,52 @@ const App: React.FC = () => {
     </div>
   );
 
+  const renderTips = () => (
+    <div className="space-y-6 animate-fadeIn pb-10">
+      <div className="px-1">
+        <h2 className="text-2xl font-black text-gray-800 dark:text-white">Dicas Fincompar</h2>
+        <p className="text-sm text-gray-400 dark:text-gray-500 font-semibold italic">Aprenda a gerenciar melhor suas finanças</p>
+      </div>
+
+      <div className="space-y-4">
+        {EDUCATIONAL_CONTENT.map(content => (
+          <div key={content.id} className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 active:bg-gray-50 dark:active:bg-gray-700 transition-colors">
+            <div className="flex items-start gap-4 mb-4">
+              <div className={`p-3 rounded-2xl ${content.type === 'audio' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-500 dark:text-indigo-400' : 'bg-green-50 dark:bg-green-900/30 text-green-500 dark:text-green-400'}`}>
+                {content.type === 'audio' ? <Play size={24} /> : <FileText size={24} />}
+              </div>
+              <div className="flex-1">
+                <h3 className="font-black text-gray-800 dark:text-white text-lg mb-1">{content.title}</h3>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-tight mb-3">
+                  {content.type === 'audio' ? '🎧 Dica em áudio • 1min' : '📖 Texto curto • 2min'}
+                </p>
+                <p className="text-sm text-gray-600 dark:text-gray-400 font-medium leading-relaxed">
+                  {content.description}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => content.type === 'audio' && playAudioTip(content.content)}
+              className="w-full bg-purple-600 text-white font-black py-4 rounded-2xl active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2"
+            >
+              {content.type === 'audio' ? <><Play size={18} /> OUVIR DICA</> : <><FileText size={18} /> LER CONTEÚDO</>}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-purple-100 dark:shadow-purple-900/30">
+        <div className="flex items-center gap-3 mb-4">
+          <Sparkles size={28} />
+          <h3 className="font-black text-xl">Em breve: Mais conteúdo!</h3>
+        </div>
+        <p className="text-purple-100 dark:text-purple-200 font-medium leading-relaxed">
+          Estamos preparando artigos, vídeos e podcasts exclusivos para ajudar você e seu parceiro a alcançarem a liberdade financeira juntos!
+        </p>
+      </div>
+    </div>
+  );
+
   const getActiveTabContent = () => {
     switch(activeTab) {
       case 'dashboard': return renderDashboard();
@@ -1329,6 +1353,7 @@ const App: React.FC = () => {
       case 'add': return renderAdd();
       case 'goals': return renderGoals();
       case 'profile': return renderProfile();
+      case 'tips': return renderTips();
       default: return renderDashboard();
     }
   };
@@ -1337,8 +1362,17 @@ const App: React.FC = () => {
     return <AuthScreen onLogin={handleLogin} />;
   }
 
+  const hasNoProfilePicture = !user.avatar || user.avatar.includes('unsplash.com');
+  const hasNoGoals = goals.length === 0;
+
   return (
-    <Layout activeTab={activeTab} setActiveTab={setActiveTab} title="Fincompar">
+    <Layout
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      title="Fincompar"
+      showProfileNotification={hasNoProfilePicture}
+      showGoalsNotification={hasNoGoals}
+    >
       <NotificationContainer notifications={notifications} onClose={removeNotification} />
       <ConfigWarning />
       {getActiveTabContent()}
@@ -1543,6 +1577,18 @@ const App: React.FC = () => {
               </button>
               <button
                 type="button"
+                onClick={() => {
+                  setIsEditingPartner(false);
+                  setShowRemovePartnerConfirmation(true);
+                }}
+                aria-label="Remover parceiro"
+                className="w-full bg-red-50 dark:bg-red-900/20 border-2 border-red-100 dark:border-red-900/40 text-red-600 dark:text-red-400 font-black py-4 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2"
+              >
+                <Trash2 size={16} />
+                REMOVER PARCEIRO
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsEditingPartner(false)}
                 aria-label="Voltar"
                 className="w-full py-2 text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest"
@@ -1550,6 +1596,47 @@ const App: React.FC = () => {
                 Voltar
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showRemovePartnerConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-fadeIn">
+            <div className="flex flex-col items-center text-center mb-8">
+              <div className="bg-red-100 dark:bg-red-900/30 p-6 rounded-full mb-6">
+                <Heart size={48} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-3">Tem certeza disso?</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-semibold leading-relaxed">
+                Ao remover seu parceiro, todos os dados compartilhados serão mantidos, mas vocês não estarão mais sincronizados.
+              </p>
+              <p className="text-xs text-red-500 dark:text-red-400 font-bold mt-4 italic">
+                Esta ação não pode ser desfeita facilmente.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  // Aqui você pode adicionar a lógica de remoção do parceiro
+                  setPartner({...partner, partnerId: null});
+                  setUser({...user, partnerId: null});
+                  addNotification('Entendo, é uma pena 😔...', 'info');
+                  setShowRemovePartnerConfirmation(false);
+                }}
+                aria-label="Confirmar remoção"
+                className="w-full bg-red-600 dark:bg-red-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                SIM, REMOVER PARCEIRO
+              </button>
+              <button
+                onClick={() => setShowRemovePartnerConfirmation(false)}
+                aria-label="Cancelar"
+                className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                CANCELAR
+              </button>
+            </div>
           </div>
         </div>
       )}
