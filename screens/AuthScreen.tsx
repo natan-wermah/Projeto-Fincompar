@@ -49,8 +49,19 @@ const handleSubmit = async (e: React.FormEvent) => {
         // Tratamento especial para rate limit
         if (error.message.includes('rate limit') || error.message.includes('429') || error.message.includes('Too Many')) {
           addNotification('⏱️ Muitas tentativas de login. Use o Modo Demo para testar o app!', 'warning');
-        } else {
+        }
+        // Email não confirmado
+        else if (error.message.includes('Email not confirmed') || error.message.includes('email_not_confirmed')) {
+          addNotification('📧 Confirme seu e-mail antes de fazer login! Verifique sua caixa de entrada.', 'warning');
+        }
+        // Credenciais inválidas
+        else if (error.message.includes('Invalid login credentials') || error.message.includes('Invalid credentials')) {
+          addNotification('❌ E-mail ou senha incorretos. Verifique suas credenciais.', 'error');
+        }
+        // Outros erros
+        else {
           addNotification('Erro ao entrar: ' + error.message, 'error');
+          console.error('Login error:', error); // Para debug
         }
       } else {
         addNotification('Login realizado com sucesso!', 'success');
