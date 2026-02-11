@@ -26,6 +26,7 @@ import {
   getInvestments,
   addInvestment as addInvestmentDB,
   deleteInvestment as deleteInvestmentDB,
+  deleteGoal as deleteGoalDB,
   sendPartnerInvitation,
   getReceivedInvitations,
   getSentInvitations,
@@ -82,6 +83,7 @@ const App: React.FC = () => {
   const [aiSummary, setAiSummary] = useState<string>('Analisando seus hábitos do mês...');
   const [showSummary, setShowSummary] = useState(false);
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
+  const [goalToDelete, setGoalToDelete] = useState<Goal | null>(null);
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -516,6 +518,28 @@ const App: React.FC = () => {
     }
   };
 
+  const handleDeleteGoal = async () => {
+    if (!goalToDelete) return;
+    try {
+      if (user?.email === 'demo@fincompar.com') {
+        setGoals(prev => prev.filter(g => g.id !== goalToDelete.id));
+      } else {
+        const success = await deleteGoalDB(goalToDelete.id);
+        if (!success) {
+          addNotification('Erro ao excluir meta', 'error');
+          setGoalToDelete(null);
+          return;
+        }
+        setGoals(prev => prev.filter(g => g.id !== goalToDelete.id));
+      }
+      addNotification('Meta excluída com sucesso', 'success');
+    } catch {
+      addNotification('Erro ao excluir meta', 'error');
+    } finally {
+      setGoalToDelete(null);
+    }
+  };
+
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -938,7 +962,7 @@ const App: React.FC = () => {
           <h3 className="font-black text-gray-800 dark:text-white tracking-tight text-lg">Suas Metas</h3>
           <ArrowRight size={20} className="text-purple-600 dark:text-purple-400" onClick={() => setActiveTab('goals')} />
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-4 -mx-1 px-1">
+        <div className="flex gap-4 overflow-x-auto pb-4 -mx-1 px-1 scrollbar-purple">
           {goals.map(goal => (
             <div key={goal.id} className="min-w-[260px] bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700">
               <div className="flex items-center gap-3 mb-4">
@@ -1380,12 +1404,20 @@ const App: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                onClick={() => setContributionGoal(goal)}
-                className="w-full bg-gray-900 dark:bg-gray-700 text-white font-black py-4 rounded-2xl hover:bg-black dark:hover:bg-gray-600 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-gray-200 dark:shadow-gray-900/30"
-              >
-                <Coins size={18} /> Contribuir Agora
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setContributionGoal(goal)}
+                  className="flex-1 bg-gray-900 dark:bg-gray-700 text-white font-black py-4 rounded-2xl hover:bg-black dark:hover:bg-gray-600 transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-gray-200 dark:shadow-gray-900/30"
+                >
+                  <Coins size={18} /> Contribuir
+                </button>
+                <button
+                  onClick={() => setGoalToDelete(goal)}
+                  className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 font-black p-4 rounded-2xl active:scale-95 transition-all border border-red-100 dark:border-red-900/40"
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
           );
         })}
@@ -2084,6 +2116,36 @@ const App: React.FC = () => {
                 className="w-full bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-600 dark:to-rose-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isSendingInvite ? <><Loader2 size={18} className="animate-spin" /> ENVIANDO...</> : <><Send size={18} /> ENVIAR CONVITE</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {goalToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-fadeIn">
+            <div className="flex flex-col items-center text-center mb-8">
+              <div className="bg-red-100 dark:bg-red-900/30 p-6 rounded-full mb-6">
+                <Trash2 size={40} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-3">Excluir meta?</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-semibold leading-relaxed">
+                A meta <span className="font-black text-gray-800 dark:text-white">"{goalToDelete.name}"</span> será excluída permanentemente. Essa ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={handleDeleteGoal}
+                className="w-full bg-red-600 dark:bg-red-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                SIM, EXCLUIR META
+              </button>
+              <button
+                onClick={() => setGoalToDelete(null)}
+                className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                CANCELAR
               </button>
             </div>
           </div>

@@ -25,10 +25,14 @@
   outline-offset: 2px;
 }
 
-/* Custom scrollbar for browsers that support it */
+/* Custom scrollbar global */
 * {
   scrollbar-width: thin;
   scrollbar-color: #D1D5DB #F9FAFB;
+}
+
+.dark * {
+  scrollbar-color: #374151 #111827;
 }
 
 *::-webkit-scrollbar {
@@ -40,11 +44,56 @@
   background: #F9FAFB;
 }
 
+.dark *::-webkit-scrollbar-track {
+  background: #111827;
+}
+
 *::-webkit-scrollbar-thumb {
   background-color: #D1D5DB;
   border-radius: 3px;
 }
 
+.dark *::-webkit-scrollbar-thumb {
+  background-color: #374151;
+  border-radius: 3px;
+}
+
 *::-webkit-scrollbar-thumb:hover {
   background-color: #9CA3AF;
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: #4B5563;
+}
+
+/* Scrollbar roxo para seção de metas */
+.scrollbar-purple {
+  scrollbar-color: #7C3AED #F9FAFB;
+}
+
+.dark .scrollbar-purple {
+  scrollbar-color: #7C3AED #111827;
+}
+
+.scrollbar-purple::-webkit-scrollbar {
+  height: 6px;
+}
+
+.scrollbar-purple::-webkit-scrollbar-track {
+  background: #F9FAFB;
+  border-radius: 3px;
+}
+
+.dark .scrollbar-purple::-webkit-scrollbar-track {
+  background: #111827;
+  border-radius: 3px;
+}
+
+.scrollbar-purple::-webkit-scrollbar-thumb {
+  background-color: #7C3AED;
+  border-radius: 3px;
+}
+
+.scrollbar-purple::-webkit-scrollbar-thumb:hover {
+  background-color: #6D28D9;
 }
