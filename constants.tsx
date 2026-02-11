@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { 
-  Home, 
-  Plus, 
-  Target, 
-  BookOpen, 
+import {
+  Home,
+  Plus,
+  Target,
+  Clock,
   User as UserIcon,
   TrendingUp,
   TrendingDown,
@@ -21,7 +21,7 @@ export const THEME = {
 
 export const NAVIGATION_ITEMS = [
   { id: 'dashboard', label: 'Início', icon: <Home size={24} /> },
-  { id: 'tips', label: 'Dicas', icon: <BookOpen size={24} /> },
+  { id: 'transactions', label: 'Histórico', icon: <Clock size={24} /> },
   { id: 'add', label: '', icon: <Plus size={32} /> },
   { id: 'goals', label: 'Metas', icon: <Target size={24} /> },
   { id: 'profile', label: 'Perfil', icon: <UserIcon size={24} /> }

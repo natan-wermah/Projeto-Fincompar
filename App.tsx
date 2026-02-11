@@ -10,7 +10,8 @@ import {
   TrendingUp, TrendingDown, Wallet, ArrowRight, Play, FileText,
   ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
-  Settings, Bell, CreditCard, Sparkles, Trash2
+  Settings, Bell, CreditCard, Sparkles, Trash2, Compass, ArrowLeft,
+  Newspaper, Wrench, Headphones, Lock
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
@@ -1291,6 +1292,24 @@ const App: React.FC = () => {
       </div>
 
       <button
+        onClick={() => setActiveTab('explore')}
+        className="w-full bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-700 rounded-[2.5rem] p-6 text-white shadow-xl shadow-purple-100 dark:shadow-purple-900/30 active:scale-[0.98] transition-all text-left"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="bg-white/20 p-3 rounded-2xl">
+              <Compass size={24} />
+            </div>
+            <div>
+              <h3 className="font-black text-lg">Explorar</h3>
+              <p className="text-purple-200 text-xs font-semibold">Dicas, artigos e mais</p>
+            </div>
+          </div>
+          <ChevronRight size={22} className="opacity-60" />
+        </div>
+      </button>
+
+      <button
         onClick={handleLogout}
         aria-label="Encerrar sessão"
         className="w-full py-5 rounded-3xl border-2 border-red-50 dark:border-red-900/30 text-red-500 dark:text-red-400 font-black text-xs uppercase tracking-widest hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex items-center justify-center gap-3"
@@ -1302,6 +1321,13 @@ const App: React.FC = () => {
 
   const renderTips = () => (
     <div className="space-y-6 animate-fadeIn pb-10">
+      <button
+        onClick={() => setActiveTab('explore')}
+        className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold text-sm active:opacity-60 transition-opacity"
+      >
+        <ArrowLeft size={18} /> Voltar ao Explorar
+      </button>
+
       <div className="px-1">
         <h2 className="text-2xl font-black text-gray-800 dark:text-white">Dicas Fincompar</h2>
         <p className="text-sm text-gray-400 dark:text-gray-500 font-semibold italic">Aprenda a gerenciar melhor suas finanças</p>
@@ -1346,6 +1372,105 @@ const App: React.FC = () => {
     </div>
   );
 
+  const EXPLORE_ITEMS = [
+    {
+      id: 'tips',
+      title: 'Dicas Financeiras',
+      description: 'Áudios e textos para melhorar suas finanças',
+      icon: <BookOpen size={24} />,
+      color: 'from-purple-500 to-indigo-500',
+      bgLight: 'bg-purple-50 dark:bg-purple-900/30',
+      textColor: 'text-purple-600 dark:text-purple-400',
+      available: true,
+    },
+    {
+      id: 'articles',
+      title: 'Artigos',
+      description: 'Conteúdo aprofundado sobre finanças a dois',
+      icon: <Newspaper size={24} />,
+      color: 'from-blue-500 to-cyan-500',
+      bgLight: 'bg-blue-50 dark:bg-blue-900/30',
+      textColor: 'text-blue-600 dark:text-blue-400',
+      available: false,
+    },
+    {
+      id: 'podcasts',
+      title: 'Podcasts',
+      description: 'Episódios sobre economia doméstica',
+      icon: <Headphones size={24} />,
+      color: 'from-orange-500 to-red-500',
+      bgLight: 'bg-orange-50 dark:bg-orange-900/30',
+      textColor: 'text-orange-600 dark:text-orange-400',
+      available: false,
+    },
+    {
+      id: 'tools',
+      title: 'Ferramentas',
+      description: 'Calculadoras e simuladores financeiros',
+      icon: <Wrench size={24} />,
+      color: 'from-green-500 to-emerald-500',
+      bgLight: 'bg-green-50 dark:bg-green-900/30',
+      textColor: 'text-green-600 dark:text-green-400',
+      available: false,
+    },
+  ];
+
+  const renderExplore = () => (
+    <div className="space-y-6 animate-fadeIn pb-10">
+      <button
+        onClick={() => setActiveTab('profile')}
+        className="flex items-center gap-2 text-purple-600 dark:text-purple-400 font-bold text-sm active:opacity-60 transition-opacity"
+      >
+        <ArrowLeft size={18} /> Voltar ao Perfil
+      </button>
+
+      <div className="px-1">
+        <h2 className="text-2xl font-black text-gray-800 dark:text-white">Explorar</h2>
+        <p className="text-sm text-gray-400 dark:text-gray-500 font-semibold italic">Conteúdos e ferramentas para o casal</p>
+      </div>
+
+      <div className="space-y-4">
+        {EXPLORE_ITEMS.map(item => (
+          <button
+            key={item.id}
+            onClick={() => item.available && setActiveTab(item.id)}
+            className={`w-full bg-white dark:bg-gray-800 rounded-3xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 transition-all text-left ${
+              item.available ? 'active:scale-[0.98]' : 'opacity-60'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-2xl ${item.bgLight} ${item.textColor}`}>
+                {item.icon}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-black text-gray-800 dark:text-white text-base">{item.title}</h3>
+                  {!item.available && (
+                    <span className="bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Lock size={10} /> Em breve
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold mt-1">{item.description}</p>
+              </div>
+              {item.available && <ChevronRight size={20} className="text-gray-300 dark:text-gray-600" />}
+            </div>
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-purple-100 dark:shadow-purple-900/30">
+        <div className="flex items-center gap-3 mb-4">
+          <Sparkles size={28} />
+          <h3 className="font-black text-xl">Novidades a caminho!</h3>
+        </div>
+        <p className="text-purple-100 dark:text-purple-200 font-medium leading-relaxed">
+          Estamos preparando artigos, podcasts e ferramentas exclusivas para ajudar você e seu parceiro a alcançarem a liberdade financeira juntos!
+        </p>
+      </div>
+    </div>
+  );
+
   const getActiveTabContent = () => {
     switch(activeTab) {
       case 'dashboard': return renderDashboard();
@@ -1353,6 +1478,7 @@ const App: React.FC = () => {
       case 'add': return renderAdd();
       case 'goals': return renderGoals();
       case 'profile': return renderProfile();
+      case 'explore': return renderExplore();
       case 'tips': return renderTips();
       default: return renderDashboard();
     }
