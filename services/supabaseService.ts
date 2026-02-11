@@ -1,5 +1,5 @@
 import { supabase } from '../supabaseClient';
-import { Transaction, Goal, User, Investment } from '../types';
+import { Transaction, Goal, User, Investment, PartnerInvitation } from '../types';
 
 // Transactions
 export const getTransactions = async (userId: string): Promise<Transaction[]> => {
@@ -362,6 +362,139 @@ export const deleteInvestment = async (id: string): Promise<boolean> => {
     return true;
   } catch (error) {
     console.error('Error deleting investment:', error);
+    return false;
+  }
+};
+
+// Partner Invitations
+export const sendPartnerInvitation = async (
+  senderId: string,
+  senderName: string,
+  senderEmail: string,
+  receiverEmail: string
+): Promise<PartnerInvitation | null> => {
+  try {
+    const { data, error } = await supabase
+      .from('partner_invitations')
+      .insert([{
+        sender_id: senderId,
+        sender_name: senderName,
+        sender_email: senderEmail,
+        receiver_email: receiverEmail,
+        status: 'pending',
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data ? {
+      id: data.id,
+      senderId: data.sender_id,
+      senderName: data.sender_name,
+      senderEmail: data.sender_email,
+      receiverEmail: data.receiver_email,
+      status: data.status,
+      createdAt: data.created_at,
+    } : null;
+  } catch (error) {
+    console.error('Error sending invitation:', error);
+    return null;
+  }
+};
+
+export const getReceivedInvitations = async (userEmail: string): Promise<PartnerInvitation[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('partner_invitations')
+      .select('*')
+      .eq('receiver_email', userEmail)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(item => ({
+      id: item.id,
+      senderId: item.sender_id,
+      senderName: item.sender_name,
+      senderEmail: item.sender_email,
+      receiverEmail: item.receiver_email,
+      status: item.status,
+      createdAt: item.created_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching received invitations:', error);
+    return [];
+  }
+};
+
+export const getSentInvitations = async (userId: string): Promise<PartnerInvitation[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('partner_invitations')
+      .select('*')
+      .eq('sender_id', userId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(item => ({
+      id: item.id,
+      senderId: item.sender_id,
+      senderName: item.sender_name,
+      senderEmail: item.sender_email,
+      receiverEmail: item.receiver_email,
+      status: item.status,
+      createdAt: item.created_at,
+    }));
+  } catch (error) {
+    console.error('Error fetching sent invitations:', error);
+    return [];
+  }
+};
+
+export const acceptPartnerInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.rpc('accept_partner_invitation', {
+      invitation_id: invitationId,
+    });
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error accepting invitation:', error);
+    return false;
+  }
+};
+
+export const rejectPartnerInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('partner_invitations')
+      .update({ status: 'rejected', updated_at: new Date().toISOString() })
+      .eq('id', invitationId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error rejecting invitation:', error);
+    return false;
+  }
+};
+
+export const cancelPartnerInvitation = async (invitationId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('partner_invitations')
+      .delete()
+      .eq('id', invitationId);
+
+    if (error) throw error;
+    return true;
+  } catch (error) {
+    console.error('Error canceling invitation:', error);
     return false;
   }
 };

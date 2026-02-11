@@ -54,6 +54,18 @@ export interface User {
   avatar: string;
 }
 
+export type InvitationStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface PartnerInvitation {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderEmail: string;
+  receiverEmail: string;
+  status: InvitationStatus;
+  createdAt: string;
+}
+
 export interface EducationalContent {
   id: string;
   title: string;

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Transaction, Goal, User, EducationalContent, Category, Investment, InvestmentCategory, generateId, Notification as NotificationType } from './types';
+import { Transaction, Goal, User, EducationalContent, Category, Investment, InvestmentCategory, PartnerInvitation, generateId, Notification as NotificationType } from './types';
 import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
 import { NotificationContainer } from './components/Notification';
@@ -11,7 +11,7 @@ import {
   ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
   Settings, Bell, CreditCard, Sparkles, Trash2, Compass, ArrowLeft,
-  Newspaper, Wrench, Headphones, Lock
+  Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
@@ -26,6 +26,13 @@ import {
   getInvestments,
   addInvestment as addInvestmentDB,
   deleteInvestment as deleteInvestmentDB,
+  sendPartnerInvitation,
+  getReceivedInvitations,
+  getSentInvitations,
+  acceptPartnerInvitation,
+  rejectPartnerInvitation,
+  cancelPartnerInvitation,
+  getPartnerProfile,
 } from './services/supabaseService';
 
 const INITIAL_USER: User = {
@@ -75,6 +82,11 @@ const App: React.FC = () => {
   const [isEditingPartner, setIsEditingPartner] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
   const [showRemovePartnerConfirmation, setShowRemovePartnerConfirmation] = useState(false);
+  const [showInvitePartner, setShowInvitePartner] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [receivedInvitations, setReceivedInvitations] = useState<PartnerInvitation[]>([]);
+  const [sentInvitations, setSentInvitations] = useState<PartnerInvitation[]>([]);
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [isAddingGoal, setIsAddingGoal] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
@@ -150,6 +162,97 @@ const App: React.FC = () => {
       loadUserData();
     }
   }, [isAuthenticated, loadUserData]);
+
+  const loadInvitations = useCallback(async () => {
+    if (!user.id || !user.email || !isAuthenticated || user.email === 'demo@fincompar.com') return;
+    try {
+      const [received, sent] = await Promise.all([
+        getReceivedInvitations(user.email),
+        getSentInvitations(user.id),
+      ]);
+      setReceivedInvitations(received);
+      setSentInvitations(sent);
+    } catch (error) {
+      console.error('Error loading invitations:', error);
+    }
+  }, [user.id, user.email, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadInvitations();
+    }
+  }, [isAuthenticated, loadInvitations]);
+
+  const handleSendInvite = async () => {
+    if (!inviteEmail.trim()) {
+      addNotification('Digite o email do parceiro(a)', 'warning');
+      return;
+    }
+    if (inviteEmail.trim() === user.email) {
+      addNotification('Você não pode convidar a si mesmo', 'warning');
+      return;
+    }
+    setIsSendingInvite(true);
+    try {
+      const invitation = await sendPartnerInvitation(user.id, user.name, user.email, inviteEmail.trim());
+      if (invitation) {
+        setSentInvitations(prev => [invitation, ...prev]);
+        setInviteEmail('');
+        setShowInvitePartner(false);
+        addNotification('Convite enviado com sucesso!', 'success');
+      } else {
+        addNotification('Erro ao enviar convite. Verifique o email.', 'error');
+      }
+    } catch {
+      addNotification('Erro ao enviar convite', 'error');
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
+
+  const handleAcceptInvite = async (invitation: PartnerInvitation) => {
+    try {
+      const success = await acceptPartnerInvitation(invitation.id);
+      if (success) {
+        // Carregar dados do parceiro
+        const partnerData = await getPartnerProfile(invitation.senderId);
+        if (partnerData) {
+          setPartner(partnerData);
+          setUser(prev => ({ ...prev, partnerId: invitation.senderId }));
+        }
+        setReceivedInvitations(prev => prev.filter(i => i.id !== invitation.id));
+        addNotification('Parceiro(a) vinculado(a) com sucesso!', 'success');
+      } else {
+        addNotification('Erro ao aceitar convite', 'error');
+      }
+    } catch {
+      addNotification('Erro ao aceitar convite', 'error');
+    }
+  };
+
+  const handleRejectInvite = async (invitationId: string) => {
+    try {
+      const success = await rejectPartnerInvitation(invitationId);
+      if (success) {
+        setReceivedInvitations(prev => prev.filter(i => i.id !== invitationId));
+        addNotification('Convite recusado', 'info');
+      }
+    } catch {
+      addNotification('Erro ao recusar convite', 'error');
+    }
+  };
+
+  const handleCancelInvite = async (invitationId: string) => {
+    try {
+      const success = await cancelPartnerInvitation(invitationId);
+      if (success) {
+        setSentInvitations(prev => prev.filter(i => i.id !== invitationId));
+        addNotification('Convite cancelado', 'info');
+      }
+    } catch {
+      addNotification('Erro ao cancelar convite', 'error');
+    }
+  };
 
   const fetchSummary = useCallback(async () => {
     if (!isAuthenticated || debouncedTransactions.length === 0) return;
@@ -1281,20 +1384,101 @@ const App: React.FC = () => {
          </div>
       </div>
 
-      <div className="bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-green-100 dark:shadow-green-900/30">
-         <div className="flex justify-between items-center mb-6">
+      {user.partnerId && partner?.id ? (
+        <div className="bg-gradient-to-br from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 rounded-[2.5rem] p-7 text-white shadow-xl shadow-green-100 dark:shadow-green-900/30">
+          <div className="flex justify-between items-center mb-6">
             <h3 className="font-black text-xl flex items-center gap-2"><Heart size={22} fill="white" /> Meu amor</h3>
             <Settings size={20} className="opacity-60" onClick={() => setIsEditingPartner(true)} />
-         </div>
-         <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20">
+          </div>
+          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20">
             <img src={partner.avatar} className="w-14 h-14 rounded-2xl border-2 border-white/30 object-cover shadow-inner" />
             <div className="flex-1">
-               <p className="font-black text-lg">{partner.name}</p>
-               <p className="text-xs text-green-100 font-semibold opacity-80 italic">{partner.email}</p>
+              <p className="font-black text-lg">{partner.name}</p>
+              <p className="text-xs text-green-100 font-semibold opacity-80 italic">{partner.email}</p>
             </div>
             <div className="bg-white/20 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm border border-white/10">Sincronizado</div>
-         </div>
-      </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="bg-pink-50 dark:bg-pink-900/30 p-3 rounded-2xl">
+              <Heart size={22} className="text-pink-500 dark:text-pink-400" />
+            </div>
+            <div>
+              <h3 className="font-black text-gray-800 dark:text-white text-lg">Vincular Parceiro(a)</h3>
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold">Compartilhem metas e finanças juntos</p>
+            </div>
+          </div>
+
+          {receivedInvitations.length > 0 && (
+            <div className="mb-4 space-y-3">
+              <p className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-wider">Convites recebidos</p>
+              {receivedInvitations.map(inv => (
+                <div key={inv.id} className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 border border-purple-100 dark:border-purple-900/40">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="bg-purple-100 dark:bg-purple-900/40 p-2 rounded-xl">
+                      <UserPlus size={18} className="text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-black text-gray-800 dark:text-white text-sm">{inv.senderName}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold">{inv.senderEmail}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleAcceptInvite(inv)}
+                      className="flex-1 bg-green-500 dark:bg-green-600 text-white font-black py-3 rounded-xl text-xs uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Check size={14} /> Aceitar
+                    </button>
+                    <button
+                      onClick={() => handleRejectInvite(inv.id)}
+                      className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 font-black py-3 rounded-xl text-xs uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <X size={14} /> Recusar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {sentInvitations.length > 0 && (
+            <div className="mb-4 space-y-3">
+              <p className="text-xs font-black text-orange-600 dark:text-orange-400 uppercase tracking-wider">Convites enviados</p>
+              {sentInvitations.map(inv => (
+                <div key={inv.id} className="bg-orange-50 dark:bg-orange-900/20 rounded-2xl p-4 border border-orange-100 dark:border-orange-900/40">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-orange-100 dark:bg-orange-900/40 p-2 rounded-xl">
+                        <Clock size={16} className="text-orange-500 dark:text-orange-400" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-800 dark:text-white text-sm">{inv.receiverEmail}</p>
+                        <p className="text-[10px] text-orange-500 dark:text-orange-400 font-black uppercase tracking-wider">Aguardando resposta</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleCancelInvite(inv.id)}
+                      className="p-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 active:scale-90 transition-all"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowInvitePartner(true)}
+            className="w-full bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-600 dark:to-rose-600 text-white font-black py-4 rounded-2xl active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2"
+          >
+            <Send size={16} /> ENVIAR CONVITE
+          </button>
+        </div>
+      )}
 
       <button
         onClick={() => setActiveTab('explore')}
@@ -1766,6 +1950,53 @@ const App: React.FC = () => {
                 className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
               >
                 CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInvitePartner && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp">
+            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
+            <button onClick={() => { setShowInvitePartner(false); setInviteEmail(''); }} className="absolute top-6 right-6 p-2 rounded-2xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+              <X size={20} className="text-gray-400" />
+            </button>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="bg-pink-100 dark:bg-pink-900/30 p-4 rounded-3xl text-pink-500 dark:text-pink-400">
+                <Heart size={32} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Convidar Parceiro(a)</h2>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold">Envie um convite para começar a compartilhar</p>
+              </div>
+            </div>
+            <div className="space-y-5">
+              <div>
+                <label className="text-xs font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 block">Email do parceiro(a)</label>
+                <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 rounded-2xl px-4">
+                  <Mail size={18} className="text-gray-400 dark:text-gray-500" />
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="parceiro@email.com"
+                    className="w-full py-4 bg-transparent text-gray-800 dark:text-white font-bold outline-none placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 border border-purple-100 dark:border-purple-900/40">
+                <p className="text-xs text-purple-600 dark:text-purple-400 font-bold leading-relaxed">
+                  Seu parceiro(a) precisa ter uma conta no Fincompar. Ao aceitar o convite, vocês poderão compartilhar metas e acompanhar finanças juntos.
+                </p>
+              </div>
+              <button
+                onClick={handleSendInvite}
+                disabled={isSendingInvite}
+                className="w-full bg-gradient-to-r from-pink-500 to-rose-500 dark:from-pink-600 dark:to-rose-600 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSendingInvite ? <><Loader2 size={18} className="animate-spin" /> ENVIANDO...</> : <><Send size={18} /> ENVIAR CONVITE</>}
               </button>
             </div>
           </div>
