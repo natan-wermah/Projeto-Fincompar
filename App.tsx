@@ -118,6 +118,8 @@ const App: React.FC = () => {
   const [dashboardPeriod, setDashboardPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [partnerTransactions, setPartnerTransactions] = useState<Transaction[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  const [editType, setEditType] = useState<'income' | 'expense'>('expense');
   const [showPluggyConnect, setShowPluggyConnect] = useState(false);
   const [pluggyConnectToken, setPluggyConnectToken] = useState<string | null>(null);
   const [connectedItemId, setConnectedItemId] = useState<string | null>(() => localStorage.getItem('pluggy_item_id'));
@@ -603,6 +605,52 @@ const App: React.FC = () => {
     }
   };
 
+  const handleEditTransaction = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!transactionToEdit) return;
+
+    const formData = new FormData(e.currentTarget);
+    const amount = parseFloat(formData.get('editAmount') as string);
+    const description = (formData.get('editDescription') as string)?.trim();
+    const category = formData.get('editCategory') as Category;
+    const date = formData.get('editDate') as string;
+
+    if (!description || description.length === 0) {
+      addNotification('Adicione uma descrição', 'warning');
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      addNotification('Insira um valor válido', 'warning');
+      return;
+    }
+
+    const updates: Partial<Transaction> = {
+      amount,
+      description,
+      category,
+      date,
+      type: editType,
+    };
+
+    try {
+      if (user?.email === 'demo@fincompar.com') {
+        setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
+      } else {
+        const updated = await updateTransactionDB(transactionToEdit.id, updates);
+        if (!updated) {
+          addNotification('Erro ao editar transação', 'error');
+          return;
+        }
+        setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
+      }
+      addNotification('Transação editada com sucesso!', 'success');
+    } catch {
+      addNotification('Erro ao editar transação', 'error');
+    } finally {
+      setTransactionToEdit(null);
+    }
+  };
+
   const handleOpenPluggyConnect = async () => {
     setIsLoadingPluggy(true);
     try {
@@ -1054,12 +1102,20 @@ const App: React.FC = () => {
                     )}
                   </div>
                   {t.payerId === user?.id && (
-                    <button
-                      onClick={() => setTransactionToDelete(t)}
-                      className="p-2 rounded-xl text-red-300 dark:text-red-500/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-90"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => { setTransactionToEdit(t); setEditType(t.type); }}
+                        className="p-2 rounded-xl text-gray-300 dark:text-gray-500/50 hover:text-purple-500 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all active:scale-90"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => setTransactionToDelete(t)}
+                        className="p-2 rounded-xl text-red-300 dark:text-red-500/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-90"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -2469,6 +2525,126 @@ const App: React.FC = () => {
                 CANCELAR
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {transactionToEdit && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[2px] p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-slideUp max-h-[90vh] overflow-y-auto scrollbar-purple">
+            <div className="w-12 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full mx-auto mb-8"></div>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="bg-purple-100 dark:bg-purple-900/30 p-4 rounded-3xl text-purple-600 dark:text-purple-400">
+                <Edit2 size={32} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Editar Transação</h2>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">Alterar dados</p>
+              </div>
+            </div>
+
+            {/* Toggle income/expense */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <button
+                type="button"
+                onClick={() => setEditType('expense')}
+                className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                  editType === 'expense'
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-200 dark:shadow-red-900/30'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Gasto
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditType('income')}
+                className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+                  editType === 'income'
+                    ? 'bg-green-500 text-white shadow-lg shadow-green-200 dark:shadow-green-900/30'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Ganho
+              </button>
+            </div>
+
+            <form onSubmit={handleEditTransaction} className="space-y-6">
+              <div>
+                <label htmlFor="editDescription" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Descrição
+                </label>
+                <input
+                  id="editDescription"
+                  name="editDescription"
+                  type="text"
+                  required
+                  maxLength={100}
+                  defaultValue={transactionToEdit.description}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div>
+                <label htmlFor="editAmount" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Valor
+                </label>
+                <div className="relative">
+                  <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-600 font-black text-xl">R$</span>
+                  <input
+                    id="editAmount"
+                    name="editAmount"
+                    type="number"
+                    step="0.01"
+                    required
+                    defaultValue={transactionToEdit.amount}
+                    className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 pl-16 pr-6 font-bold text-xl outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="editCategory" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Categoria
+                </label>
+                <select
+                  id="editCategory"
+                  name="editCategory"
+                  defaultValue={transactionToEdit.category}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white appearance-none"
+                >
+                  {(editType === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).map(c => (
+                    <option key={c.name} value={c.name}>{c.icon} {c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="editDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Data
+                </label>
+                <input
+                  id="editDate"
+                  name="editDate"
+                  type="date"
+                  required
+                  defaultValue={transactionToEdit.date}
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
+                />
+              </div>
+              <div className="space-y-3 pt-2">
+                <button
+                  type="submit"
+                  className="w-full bg-purple-600 dark:bg-purple-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+                >
+                  SALVAR
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTransactionToEdit(null)}
+                  className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+                >
+                  CANCELAR
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

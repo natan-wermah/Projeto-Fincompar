@@ -100,6 +100,11 @@ export const fetchPluggyTransactions = async (
   return allTransactions;
 };
 
+// Categorias que são sempre gasto
+const EXPENSE_CATEGORY_NAMES = ['Alimentação', 'Moradia', 'Lazer', 'Transporte', 'Saúde', 'Educação'];
+// Categorias que são sempre ganho
+const INCOME_CATEGORY_NAMES = ['Trabalho Principal', 'Clientes', 'Freelas'];
+
 /**
  * Mapeia uma transação do Pluggy para o formato Fincompar
  */
@@ -107,8 +112,18 @@ const mapPluggyTransaction = (
   tx: { id: string; description: string; amount: number; date: Date },
   payerId: string,
 ): FincomparTransaction => {
-  const isIncome = tx.amount > 0;
   const category = categorizeTransaction(tx.description);
+
+  // Determina tipo baseado na categoria (mais confiável que o sinal do valor)
+  let type: 'income' | 'expense';
+  if (EXPENSE_CATEGORY_NAMES.includes(category)) {
+    type = 'expense';
+  } else if (INCOME_CATEGORY_NAMES.includes(category)) {
+    type = 'income';
+  } else {
+    // Fallback para 'Outros': usa sinal do valor
+    type = tx.amount > 0 ? 'income' : 'expense';
+  }
 
   return {
     id: `pluggy_${tx.id}`,
@@ -117,7 +132,7 @@ const mapPluggyTransaction = (
     date: new Date(tx.date).toISOString().split('T')[0],
     category,
     payerId,
-    type: isIncome ? 'income' : 'expense',
+    type,
     shared: false,
     createdAt: new Date().toISOString(),
   };
