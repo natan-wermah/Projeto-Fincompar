@@ -21,6 +21,7 @@ export interface Transaction {
   category: Category;
   payerId: string;
   type: 'income' | 'expense';
+  shared?: boolean;
   createdAt?: string; // ISO timestamp
 }
 

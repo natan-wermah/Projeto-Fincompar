@@ -21,6 +21,7 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
       category: item.category,
       payerId: item.payer_id,
       type: item.type,
+      shared: item.shared || false,
       createdAt: item.created_at
     }));
   } catch (error) {
@@ -39,6 +40,7 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       category: transaction.category,
       payer_id: transaction.payerId,
       type: transaction.type,
+      shared: transaction.shared || false,
       created_at: new Date().toISOString()
     };
 
@@ -59,10 +61,47 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       category: data.category,
       payerId: data.payer_id,
       type: data.type,
+      shared: data.shared || false,
       createdAt: data.created_at
     } : null;
   } catch (error) {
     console.error('Error adding transaction:', error);
+    return null;
+  }
+};
+
+export const updateTransaction = async (id: string, updates: Partial<Transaction>): Promise<Transaction | null> => {
+  try {
+    const dbUpdates: any = {};
+    if (updates.shared !== undefined) dbUpdates.shared = updates.shared;
+    if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.type !== undefined) dbUpdates.type = updates.type;
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return data ? {
+      id: data.id,
+      amount: data.amount,
+      description: data.description,
+      date: data.date,
+      category: data.category,
+      payerId: data.payer_id,
+      type: data.type,
+      shared: data.shared || false,
+      createdAt: data.created_at
+    } : null;
+  } catch (error) {
+    console.error('Error updating transaction:', error);
     return null;
   }
 };
@@ -75,6 +114,34 @@ export const deleteTransaction = async (id: string): Promise<boolean> => {
   } catch (error) {
     console.error('Error deleting transaction:', error);
     return false;
+  }
+};
+
+export const getPartnerSharedTransactions = async (partnerId: string): Promise<Transaction[]> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('payer_id', partnerId)
+      .eq('shared', true)
+      .order('date', { ascending: false });
+
+    if (error) throw error;
+
+    return (data || []).map(item => ({
+      id: item.id,
+      amount: item.amount,
+      description: item.description,
+      date: item.date,
+      category: item.category,
+      payerId: item.payer_id,
+      type: item.type,
+      shared: item.shared || false,
+      createdAt: item.created_at
+    }));
+  } catch (error) {
+    console.error('Error fetching partner shared transactions:', error);
+    return [];
   }
 };
 
@@ -258,7 +325,8 @@ export const uploadAvatar = async (userId: string, file: File): Promise<string |
     const avatarUrl = `${data.publicUrl}?t=${Date.now()}`;
 
     // Atualizar avatar no perfil do usuario
-    await supabase.from('users').update({ avatar: avatarUrl }).eq('id', userId);
+    const { error: updateError } = await supabase.from('users').update({ avatar: avatarUrl }).eq('id', userId);
+    if (updateError) throw updateError;
 
     return avatarUrl;
   } catch (error) {

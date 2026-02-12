@@ -11,7 +11,8 @@ import {
   ChevronRight, ChevronLeft, X, UserPlus, Heart, Plus, Target,
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
   Settings, Bell, CreditCard, Sparkles, Trash2, Compass, ArrowLeft,
-  Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2, Camera
+  Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2, Camera,
+  Users, Share2
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
@@ -27,6 +28,9 @@ import {
   addInvestment as addInvestmentDB,
   deleteInvestment as deleteInvestmentDB,
   deleteGoal as deleteGoalDB,
+  deleteTransaction as deleteTransactionDB,
+  updateTransaction as updateTransactionDB,
+  getPartnerSharedTransactions,
   sendPartnerInvitation,
   getReceivedInvitations,
   getSentInvitations,
@@ -108,6 +112,10 @@ const App: React.FC = () => {
   });
   const [showChartModal, setShowChartModal] = useState<'income' | 'expense' | null>(null);
   const [showInvestmentsModal, setShowInvestmentsModal] = useState(false);
+  const [balanceMode, setBalanceMode] = useState<'individual' | 'couple'>('individual');
+  const [dashboardPeriod, setDashboardPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [partnerTransactions, setPartnerTransactions] = useState<Transaction[]>([]);
+  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -158,12 +166,18 @@ const App: React.FC = () => {
       setTransactions(transactionsData);
       setGoals(goalsData);
       setInvestments(investmentsData);
+
+      // Carregar transações compartilhadas do parceiro
+      if (user.partnerId) {
+        const partnerTx = await getPartnerSharedTransactions(user.partnerId);
+        setPartnerTransactions(partnerTx);
+      }
     } catch (error) {
       addNotification('Erro ao carregar dados', 'error');
     } finally {
       setIsLoadingData(false);
     }
-  }, [user.id, isAuthenticated]);
+  }, [user.id, user.partnerId, isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -371,7 +385,8 @@ const App: React.FC = () => {
       category: formData.get('category') as Category,
       date: formData.get('date') as string,
       payerId: user.id,
-      type: formData.get('type') as 'income' | 'expense'
+      type: formData.get('type') as 'income' | 'expense',
+      shared: false,
     };
 
     try {
@@ -540,6 +555,47 @@ const App: React.FC = () => {
     }
   };
 
+  const handleToggleShared = async (transaction: Transaction) => {
+    const newShared = !transaction.shared;
+    try {
+      if (user?.email === 'demo@fincompar.com') {
+        setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, shared: newShared } : t));
+      } else {
+        const updated = await updateTransactionDB(transaction.id, { shared: newShared });
+        if (!updated) {
+          addNotification('Erro ao atualizar transação', 'error');
+          return;
+        }
+        setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, shared: newShared } : t));
+      }
+      addNotification(newShared ? 'Transação compartilhada com parceiro(a)' : 'Transação tornada individual', 'success');
+    } catch {
+      addNotification('Erro ao atualizar transação', 'error');
+    }
+  };
+
+  const handleDeleteTransaction = async () => {
+    if (!transactionToDelete) return;
+    try {
+      if (user?.email === 'demo@fincompar.com') {
+        setTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
+      } else {
+        const success = await deleteTransactionDB(transactionToDelete.id);
+        if (!success) {
+          addNotification('Erro ao excluir transação', 'error');
+          setTransactionToDelete(null);
+          return;
+        }
+        setTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
+      }
+      addNotification('Transação excluída com sucesso', 'success');
+    } catch {
+      addNotification('Erro ao excluir transação', 'error');
+    } finally {
+      setTransactionToDelete(null);
+    }
+  };
+
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -651,7 +707,11 @@ const App: React.FC = () => {
       // Upload do avatar se selecionou uma foto nova
       if (avatarFile && user.email !== 'demo@fincompar.com') {
         const url = await uploadAvatar(user.id, avatarFile);
-        if (url) newAvatarUrl = url;
+        if (url) {
+          newAvatarUrl = url;
+        } else {
+          addNotification('Erro ao enviar foto. Execute setup-avatars-storage.sql no Supabase.', 'warning');
+        }
       }
 
       // Salvar no banco (se nao for demo)
@@ -867,27 +927,56 @@ const App: React.FC = () => {
             </div>
           ) : (
             filteredTransactions.map(t => (
-              <div key={t.id} className="bg-white dark:bg-gray-800 p-4 rounded-3xl flex items-center justify-between gap-3 shadow-sm border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className={`w-12 h-12 flex-shrink-0 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
-                    t.type === 'income' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'
-                  }`}>
-                    {(t.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).find(c => c.name === t.category)?.icon || '💰'}
+              <div key={t.id} className="bg-white dark:bg-gray-800 p-4 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={`w-12 h-12 flex-shrink-0 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
+                      t.type === 'income' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'
+                    }`}>
+                      {(t.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).find(c => c.name === t.category)?.icon || '💰'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{t.description}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest truncate">
+                        {t.category} • {new Date(t.date).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{t.description}</p>
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest truncate">
-                      {t.category} • {new Date(t.date).toLocaleDateString('pt-BR')}
+                  <div className="text-right flex-shrink-0">
+                    <p className={`font-black text-sm whitespace-nowrap ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
                     </p>
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <p className={`font-black text-sm whitespace-nowrap ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
-                  </p>
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">
-                    {t.payerId === 'user_1' || t.payerId === 'demo-user-id' ? user.name.split(' ')[0] : partner.name.split(' ')[0]}
-                  </p>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50 dark:border-gray-700">
+                  <div className="flex items-center gap-2">
+                    {partner?.id && t.payerId === user?.id && (
+                      <button
+                        onClick={() => handleToggleShared(t)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+                          t.shared
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                            : 'bg-gray-50 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                        }`}
+                      >
+                        {t.shared ? <Users size={12} /> : <UserIcon size={12} />}
+                        {t.shared ? 'Compartilhada' : 'Individual'}
+                      </button>
+                    )}
+                    {t.payerId !== user?.id && (
+                      <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-green-50 dark:bg-green-900/20 text-green-500 dark:text-green-400">
+                        <Share2 size={12} /> {partner?.name?.split(' ')[0]}
+                      </span>
+                    )}
+                  </div>
+                  {t.payerId === user?.id && (
+                    <button
+                      onClick={() => setTransactionToDelete(t)}
+                      className="p-2 rounded-xl text-red-300 dark:text-red-500/50 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-90"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -897,17 +986,86 @@ const App: React.FC = () => {
     );
   };
 
-  const renderDashboard = () => (
+  const getDashboardFilteredData = () => {
+    const now = new Date();
+    let startDate: Date;
+
+    switch (dashboardPeriod) {
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+    }
+
+    const filterByDate = (t: Transaction) => {
+      const d = new Date(t.date);
+      return d >= startDate && d <= now;
+    };
+
+    let filtered = transactions.filter(filterByDate);
+
+    if (balanceMode === 'couple' && partnerTransactions.length > 0) {
+      const partnerFiltered = partnerTransactions.filter(filterByDate);
+      filtered = [...filtered, ...partnerFiltered];
+    }
+
+    const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = filtered.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    return { income, expense, balance: income - expense };
+  };
+
+  const renderDashboard = () => {
+    const dashData = getDashboardFilteredData();
+    const periodLabels = { week: 'Sem', month: 'Mês', year: 'Ano' };
+
+    return (
     <div className="space-y-6 animate-fadeIn pb-10">
       <div className="bg-purple-600 dark:bg-purple-700 rounded-[2rem] p-7 text-white shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-        <p className="text-purple-100 dark:text-purple-200 text-sm font-semibold mb-1 opacity-80">Saldo total do casal</p>
+
+        <div className="flex justify-between items-center mb-1">
+          <p className="text-purple-100 dark:text-purple-200 text-sm font-semibold opacity-80">
+            {balanceMode === 'couple' ? 'Saldo do casal' : 'Saldo total'}
+          </p>
+          {partner?.id && (
+            <button
+              onClick={() => setBalanceMode(prev => prev === 'individual' ? 'couple' : 'individual')}
+              className="flex items-center gap-1.5 bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-white/10"
+            >
+              {balanceMode === 'couple' ? <Users size={12} /> : <UserIcon size={12} />}
+              {balanceMode === 'couple' ? 'Casal' : 'Individual'}
+            </button>
+          )}
+        </div>
+
         <div className="flex items-end gap-2">
-          <h2 className="text-4xl font-black">R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+          <h2 className="text-4xl font-black">R$ {dashData.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
           <div className="mb-2 bg-green-400 w-2 h-2 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.8)]"></div>
         </div>
 
-        <div className="space-y-3 mt-8">
+        {/* Filtro de período */}
+        <div className="flex gap-2 mt-4">
+          {(['week', 'month', 'year'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setDashboardPeriod(p)}
+              className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+                dashboardPeriod === p
+                  ? 'bg-white/25 border border-white/30'
+                  : 'bg-white/8 border border-white/5 opacity-60'
+              }`}
+            >
+              {periodLabels[p]}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3 mt-6">
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => setShowChartModal('income')}
@@ -916,7 +1074,7 @@ const App: React.FC = () => {
               <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
                 Entradas <span className="text-sm">📈</span>
               </p>
-              <p className="font-bold text-lg text-green-300">R$ {totalIncome.toLocaleString('pt-BR')}</p>
+              <p className="font-bold text-lg text-green-300">R$ {dashData.income.toLocaleString('pt-BR')}</p>
             </button>
             <button
               onClick={() => setShowChartModal('expense')}
@@ -925,7 +1083,7 @@ const App: React.FC = () => {
               <p className="text-[10px] uppercase font-black text-purple-100 dark:text-purple-200 mb-1 tracking-widest flex items-center gap-1">
                 Saídas <span className="text-sm">📉</span>
               </p>
-              <p className="font-bold text-lg text-red-300">R$ {totalExpense.toLocaleString('pt-BR')}</p>
+              <p className="font-bold text-lg text-red-300">R$ {dashData.expense.toLocaleString('pt-BR')}</p>
             </button>
           </div>
 
@@ -1015,6 +1173,7 @@ const App: React.FC = () => {
       </div>
     </div>
   );
+  };
 
   const renderAdd = () => {
     // Step 1: Choose transaction type (Gasto ou Ganho)
@@ -2143,6 +2302,37 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => setGoalToDelete(null)}
+                className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transactionToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-fadeIn">
+            <div className="flex flex-col items-center text-center mb-8">
+              <div className="bg-red-100 dark:bg-red-900/30 p-6 rounded-full mb-6">
+                <Trash2 size={40} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-3">Excluir transação?</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-semibold leading-relaxed">
+                A transação <span className="font-black text-gray-800 dark:text-white">"{transactionToDelete.description}"</span> de{' '}
+                <span className="font-black text-gray-800 dark:text-white">R$ {transactionToDelete.amount.toFixed(2)}</span> será excluída permanentemente.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={handleDeleteTransaction}
+                className="w-full bg-red-600 dark:bg-red-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                SIM, EXCLUIR
+              </button>
+              <button
+                onClick={() => setTransactionToDelete(null)}
                 className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
               >
                 CANCELAR
