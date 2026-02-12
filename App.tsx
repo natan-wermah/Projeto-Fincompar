@@ -12,7 +12,7 @@ import {
   BookOpen, Coins, Edit2, Mail, User as UserIcon, LogOut,
   Settings, Bell, CreditCard, Sparkles, Trash2, Compass, ArrowLeft,
   Newspaper, Wrench, Headphones, Lock, Send, Check, Clock, Loader2, Camera,
-  Users, Share2
+  Users, Share2, Building2, RefreshCw, Unplug
 } from 'lucide-react';
 import { getFinancialSummary, generateAudioTip } from './services/geminiService';
 import { CATEGORIES, EXPENSE_CATEGORIES, INCOME_CATEGORIES, INVESTMENT_CATEGORIES } from './constants';
@@ -42,6 +42,8 @@ import {
   uploadAvatar,
   updateUserProfile,
 } from './services/supabaseService';
+import { PluggyConnect } from 'react-pluggy-connect';
+import { createConnectToken, fetchPluggyTransactions, deletePluggyItem } from './services/pluggyService';
 
 const INITIAL_USER: User = {
   id: 'user_1',
@@ -116,6 +118,11 @@ const App: React.FC = () => {
   const [dashboardPeriod, setDashboardPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [partnerTransactions, setPartnerTransactions] = useState<Transaction[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [showPluggyConnect, setShowPluggyConnect] = useState(false);
+  const [pluggyConnectToken, setPluggyConnectToken] = useState<string | null>(null);
+  const [connectedItemId, setConnectedItemId] = useState<string | null>(() => localStorage.getItem('pluggy_item_id'));
+  const [isSyncingBank, setIsSyncingBank] = useState(false);
+  const [isLoadingPluggy, setIsLoadingPluggy] = useState(false);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -594,6 +601,83 @@ const App: React.FC = () => {
     } finally {
       setTransactionToDelete(null);
     }
+  };
+
+  const handleOpenPluggyConnect = async () => {
+    setIsLoadingPluggy(true);
+    try {
+      const token = await createConnectToken(user?.id);
+      setPluggyConnectToken(token);
+      setShowPluggyConnect(true);
+    } catch (error) {
+      console.error('Error creating connect token:', error);
+      addNotification('Erro ao conectar com o banco. Verifique suas credenciais Pluggy.', 'error');
+    } finally {
+      setIsLoadingPluggy(false);
+    }
+  };
+
+  const handlePluggySuccess = async (data: { item: { id: string } }) => {
+    const itemId = data.item.id;
+    setConnectedItemId(itemId);
+    localStorage.setItem('pluggy_item_id', itemId);
+    setShowPluggyConnect(false);
+    setPluggyConnectToken(null);
+    addNotification('Banco conectado com sucesso! Sincronizando transações...', 'success');
+    await handleSyncBankTransactions(itemId);
+  };
+
+  const handleSyncBankTransactions = async (itemId?: string) => {
+    const id = itemId || connectedItemId;
+    if (!id || !user?.id) return;
+
+    setIsSyncingBank(true);
+    try {
+      const bankTransactions = await fetchPluggyTransactions(id, user.id);
+
+      if (user.email === 'demo@fincompar.com') {
+        // Demo: merge com transações existentes
+        setTransactions(prev => {
+          const existing = prev.filter(t => !t.id.startsWith('pluggy_'));
+          return [...bankTransactions, ...existing];
+        });
+      } else {
+        // Adicionar ao banco cada transação nova que não existe
+        const existingIds = new Set(transactions.filter(t => t.id.startsWith('pluggy_')).map(t => t.id));
+        const newTransactions = bankTransactions.filter(t => !existingIds.has(t.id));
+
+        // Atualizar estado local com transações do banco
+        setTransactions(prev => {
+          const existing = prev.filter(t => !t.id.startsWith('pluggy_'));
+          return [...bankTransactions, ...existing];
+        });
+
+        if (newTransactions.length > 0) {
+          addNotification(`${newTransactions.length} novas transações importadas do banco!`, 'success');
+        } else {
+          addNotification('Transações sincronizadas. Nenhuma nova transação encontrada.', 'info');
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing bank transactions:', error);
+      addNotification('Erro ao sincronizar transações do banco', 'error');
+    } finally {
+      setIsSyncingBank(false);
+    }
+  };
+
+  const handleDisconnectBank = async () => {
+    if (!connectedItemId) return;
+    try {
+      await deletePluggyItem(connectedItemId);
+    } catch {
+      // Ignora erro se item já não existe
+    }
+    setConnectedItemId(null);
+    localStorage.removeItem('pluggy_item_id');
+    // Remover transações importadas do banco
+    setTransactions(prev => prev.filter(t => !t.id.startsWith('pluggy_')));
+    addNotification('Banco desconectado', 'info');
   };
 
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1733,6 +1817,53 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* Conexão Bancária */}
+      <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-2xl">
+            <Building2 size={22} className="text-blue-500 dark:text-blue-400" />
+          </div>
+          <div>
+            <h3 className="font-black text-gray-800 dark:text-white text-lg">Conexão Bancária</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold">
+              {connectedItemId ? 'Banco conectado' : 'Importe transações automaticamente'}
+            </p>
+          </div>
+        </div>
+
+        {connectedItemId ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 bg-green-50 dark:bg-green-900/20 p-4 rounded-2xl border border-green-100 dark:border-green-900/40">
+              <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]"></div>
+              <p className="text-sm font-bold text-green-700 dark:text-green-400 flex-1">Conta conectada via Open Finance</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleSyncBankTransactions()}
+                disabled={isSyncingBank}
+                className="flex-1 bg-blue-500 dark:bg-blue-600 text-white font-black py-3.5 rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-wider flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isSyncingBank ? <><Loader2 size={14} className="animate-spin" /> SINCRONIZANDO...</> : <><RefreshCw size={14} /> SINCRONIZAR</>}
+              </button>
+              <button
+                onClick={handleDisconnectBank}
+                className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 font-black p-3.5 rounded-2xl active:scale-95 transition-all border border-red-100 dark:border-red-900/40"
+              >
+                <Unplug size={16} />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleOpenPluggyConnect}
+            disabled={isLoadingPluggy}
+            className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 dark:from-blue-600 dark:to-cyan-600 text-white font-black py-4 rounded-2xl active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isLoadingPluggy ? <><Loader2 size={16} className="animate-spin" /> CONECTANDO...</> : <><Building2 size={16} /> CONECTAR BANCO</>}
+          </button>
+        )}
+      </div>
+
       <button
         onClick={() => setActiveTab('explore')}
         className="w-full bg-gradient-to-br from-purple-500 to-indigo-600 dark:from-purple-600 dark:to-indigo-700 rounded-[2.5rem] p-6 text-white shadow-xl shadow-purple-100 dark:shadow-purple-900/30 active:scale-[0.98] transition-all text-left"
@@ -2542,6 +2673,28 @@ const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showPluggyConnect && pluggyConnectToken && (
+        <PluggyConnect
+          connectToken={pluggyConnectToken}
+          includeSandbox={true}
+          onSuccess={handlePluggySuccess}
+          onError={(error) => {
+            console.error('Pluggy Connect error:', error);
+            addNotification('Erro na conexão com o banco', 'error');
+            setShowPluggyConnect(false);
+            setPluggyConnectToken(null);
+          }}
+          onClose={() => {
+            setShowPluggyConnect(false);
+            setPluggyConnectToken(null);
+          }}
+          connectorTypes={['PERSONAL_BANK', 'BUSINESS_BANK']}
+          countries={['BR']}
+          language="pt"
+          theme={isDarkMode ? 'dark' : 'light'}
+        />
       )}
 
       <style>{`
