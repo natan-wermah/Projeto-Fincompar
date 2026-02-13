@@ -64,8 +64,8 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       shared: data.shared || false,
       createdAt: data.created_at
     } : null;
-  } catch (error) {
-    console.error('Error adding transaction:', error);
+  } catch (error: any) {
+    console.error('Error adding transaction:', error?.code, error?.message, error?.details, error?.hint);
     return null;
   }
 };

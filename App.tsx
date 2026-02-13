@@ -698,6 +698,7 @@ const App: React.FC = () => {
 
         // Salvar novas transações no Supabase
         const saved: Transaction[] = [];
+        let failCount = 0;
         for (const tx of newTransactions) {
           const result = await addTransactionDB({
             amount: tx.amount,
@@ -708,7 +709,15 @@ const App: React.FC = () => {
             type: tx.type,
             shared: false,
           });
-          if (result) saved.push(result);
+          if (result) {
+            saved.push(result);
+          } else {
+            failCount++;
+            console.error('Falha ao salvar transação Pluggy:', tx.description, tx.category, tx.type);
+          }
+        }
+        if (failCount > 0) {
+          addNotification(`${failCount} transações falharam ao salvar. Verifique o console.`, 'warning');
         }
 
         // Guardar IDs importados para possível exclusão futura
