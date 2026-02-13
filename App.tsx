@@ -125,6 +125,7 @@ const App: React.FC = () => {
   const [connectedItemId, setConnectedItemId] = useState<string | null>(() => localStorage.getItem('pluggy_item_id'));
   const [isSyncingBank, setIsSyncingBank] = useState(false);
   const [isLoadingPluggy, setIsLoadingPluggy] = useState(false);
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -710,6 +711,13 @@ const App: React.FC = () => {
           if (result) saved.push(result);
         }
 
+        // Guardar IDs importados para possível exclusão futura
+        if (saved.length > 0) {
+          const prevIds: string[] = JSON.parse(localStorage.getItem('pluggy_imported_ids') || '[]');
+          const newIds = saved.map(t => t.id);
+          localStorage.setItem('pluggy_imported_ids', JSON.stringify([...prevIds, ...newIds]));
+        }
+
         if (saved.length > 0) {
           setTransactions(prev => [...saved, ...prev]);
           addNotification(`${saved.length} novas transações importadas do banco!`, 'success');
@@ -725,16 +733,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleDisconnectBank = async () => {
+  const handleDisconnectBank = async (deleteHistory: boolean) => {
     if (!connectedItemId) return;
     try {
       await deletePluggyItem(connectedItemId);
     } catch {
       // Ignora erro se item já não existe
     }
+
+    if (deleteHistory) {
+      const importedIds: string[] = JSON.parse(localStorage.getItem('pluggy_imported_ids') || '[]');
+      if (importedIds.length > 0) {
+        for (const txId of importedIds) {
+          try { await deleteTransactionDB(txId); } catch { /* ignora */ }
+        }
+        setTransactions(prev => prev.filter(t => !importedIds.includes(t.id)));
+      }
+      localStorage.removeItem('pluggy_imported_ids');
+      addNotification('Banco desconectado e histórico importado apagado.', 'info');
+    } else {
+      addNotification('Banco desconectado. Transações mantidas.', 'info');
+    }
+
     setConnectedItemId(null);
     localStorage.removeItem('pluggy_item_id');
-    addNotification('Banco desconectado. As transações importadas foram mantidas.', 'info');
+    setShowDisconnectConfirm(false);
   };
 
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1911,7 +1934,7 @@ const App: React.FC = () => {
                 {isSyncingBank ? <><Loader2 size={14} className="animate-spin" /> SINCRONIZANDO...</> : <><RefreshCw size={14} /> SINCRONIZAR</>}
               </button>
               <button
-                onClick={handleDisconnectBank}
+                onClick={() => setShowDisconnectConfirm(true)}
                 className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 font-black p-3.5 rounded-2xl active:scale-95 transition-all border border-red-100 dark:border-red-900/40"
               >
                 <Unplug size={16} />
@@ -2529,6 +2552,42 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => setTransactionToDelete(null)}
+                className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                CANCELAR
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDisconnectConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-md rounded-[3rem] p-8 shadow-2xl relative animate-fadeIn">
+            <div className="flex flex-col items-center text-center mb-8">
+              <div className="bg-red-100 dark:bg-red-900/30 p-6 rounded-full mb-6">
+                <Unplug size={40} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h2 className="text-2xl font-black text-gray-800 dark:text-white mb-3">Desconectar banco?</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-semibold leading-relaxed">
+                Deseja apagar as transações que foram importadas do banco?
+              </p>
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleDisconnectBank(true)}
+                className="w-full bg-red-600 dark:bg-red-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                DESCONECTAR E APAGAR
+              </button>
+              <button
+                onClick={() => handleDisconnectBank(false)}
+                className="w-full bg-purple-600 dark:bg-purple-700 text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
+              >
+                DESCONECTAR E MANTER
+              </button>
+              <button
+                onClick={() => setShowDisconnectConfirm(false)}
                 className="w-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-black py-5 rounded-[2rem] active:scale-95 transition-all text-sm tracking-widest"
               >
                 CANCELAR
