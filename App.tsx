@@ -567,8 +567,7 @@ const App: React.FC = () => {
   const handleToggleShared = async (transaction: Transaction) => {
     const newShared = !transaction.shared;
     try {
-      const isPluggyTx = transaction.id.startsWith('pluggy_');
-      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
+      if (user?.email === 'demo@fincompar.com') {
         setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, shared: newShared } : t));
       } else {
         const updated = await updateTransactionDB(transaction.id, { shared: newShared });
@@ -587,8 +586,7 @@ const App: React.FC = () => {
   const handleDeleteTransaction = async () => {
     if (!transactionToDelete) return;
     try {
-      const isPluggyTx = transactionToDelete.id.startsWith('pluggy_');
-      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
+      if (user?.email === 'demo@fincompar.com') {
         setTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
       } else {
         const success = await deleteTransactionDB(transactionToDelete.id);
@@ -635,9 +633,7 @@ const App: React.FC = () => {
     };
 
     try {
-      const isPluggyTx = transactionToEdit.id.startsWith('pluggy_');
-      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
-        // Demo ou transação Pluggy (só local, não está no Supabase)
+      if (user?.email === 'demo@fincompar.com') {
         setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
       } else {
         const updated = await updateTransactionDB(transactionToEdit.id, updates);
@@ -689,23 +685,34 @@ const App: React.FC = () => {
 
       if (user.email === 'demo@fincompar.com') {
         // Demo: merge com transações existentes
-        setTransactions(prev => {
-          const existing = prev.filter(t => !t.id.startsWith('pluggy_'));
-          return [...bankTransactions, ...existing];
-        });
+        setTransactions(prev => [...bankTransactions, ...prev]);
       } else {
-        // Adicionar ao banco cada transação nova que não existe
-        const existingIds = new Set(transactions.filter(t => t.id.startsWith('pluggy_')).map(t => t.id));
-        const newTransactions = bankTransactions.filter(t => !existingIds.has(t.id));
+        // Detectar duplicatas por descrição + data + valor
+        const existingKeys = new Set(
+          transactions.map(t => `${t.description}|${t.date}|${t.amount}`)
+        );
+        const newTransactions = bankTransactions.filter(
+          t => !existingKeys.has(`${t.description}|${t.date}|${t.amount}`)
+        );
 
-        // Atualizar estado local com transações do banco
-        setTransactions(prev => {
-          const existing = prev.filter(t => !t.id.startsWith('pluggy_'));
-          return [...bankTransactions, ...existing];
-        });
+        // Salvar novas transações no Supabase
+        const saved: Transaction[] = [];
+        for (const tx of newTransactions) {
+          const result = await addTransactionDB({
+            amount: tx.amount,
+            description: tx.description,
+            category: tx.category,
+            date: tx.date,
+            payerId: tx.payerId,
+            type: tx.type,
+            shared: false,
+          });
+          if (result) saved.push(result);
+        }
 
-        if (newTransactions.length > 0) {
-          addNotification(`${newTransactions.length} novas transações importadas do banco!`, 'success');
+        if (saved.length > 0) {
+          setTransactions(prev => [...saved, ...prev]);
+          addNotification(`${saved.length} novas transações importadas do banco!`, 'success');
         } else {
           addNotification('Transações sincronizadas. Nenhuma nova transação encontrada.', 'info');
         }
@@ -727,9 +734,7 @@ const App: React.FC = () => {
     }
     setConnectedItemId(null);
     localStorage.removeItem('pluggy_item_id');
-    // Remover transações importadas do banco
-    setTransactions(prev => prev.filter(t => !t.id.startsWith('pluggy_')));
-    addNotification('Banco desconectado', 'info');
+    addNotification('Banco desconectado. As transações importadas foram mantidas.', 'info');
   };
 
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
