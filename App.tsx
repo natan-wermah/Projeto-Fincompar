@@ -567,7 +567,8 @@ const App: React.FC = () => {
   const handleToggleShared = async (transaction: Transaction) => {
     const newShared = !transaction.shared;
     try {
-      if (user?.email === 'demo@fincompar.com') {
+      const isPluggyTx = transaction.id.startsWith('pluggy_');
+      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
         setTransactions(prev => prev.map(t => t.id === transaction.id ? { ...t, shared: newShared } : t));
       } else {
         const updated = await updateTransactionDB(transaction.id, { shared: newShared });
@@ -586,7 +587,8 @@ const App: React.FC = () => {
   const handleDeleteTransaction = async () => {
     if (!transactionToDelete) return;
     try {
-      if (user?.email === 'demo@fincompar.com') {
+      const isPluggyTx = transactionToDelete.id.startsWith('pluggy_');
+      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
         setTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
       } else {
         const success = await deleteTransactionDB(transactionToDelete.id);
@@ -633,7 +635,9 @@ const App: React.FC = () => {
     };
 
     try {
-      if (user?.email === 'demo@fincompar.com') {
+      const isPluggyTx = transactionToEdit.id.startsWith('pluggy_');
+      if (user?.email === 'demo@fincompar.com' || isPluggyTx) {
+        // Demo ou transação Pluggy (só local, não está no Supabase)
         setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
       } else {
         const updated = await updateTransactionDB(transactionToEdit.id, updates);
