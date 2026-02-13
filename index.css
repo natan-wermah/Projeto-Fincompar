@@ -4,6 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area para notch (iPhone X+) e barra de navegação Android */
+:root {
+  --safe-area-top: env(safe-area-inset-top);
+  --safe-area-bottom: env(safe-area-inset-bottom);
+}
+
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 @keyframes slideDown {
   from {
     transform: translateY(-100%);

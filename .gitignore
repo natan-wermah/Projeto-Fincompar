@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+_backup
+
+# Capacitor native projects (regeneráveis via cap add)
+android
+ios
 
 # Editor directories and files
 .vscode/*
