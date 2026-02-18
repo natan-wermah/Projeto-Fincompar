@@ -84,7 +84,7 @@ export const fetchPluggyTransactions = async (
 
   for (const account of accounts.results) {
     const now = new Date();
-    const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const from = new Date('2026-01-01');
 
     let page = 1;
     let hasMore = true;
