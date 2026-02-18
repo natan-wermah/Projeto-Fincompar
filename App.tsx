@@ -633,12 +633,15 @@ const App: React.FC = () => {
       return;
     }
 
+    const paymentMethod = (formData.get('editPaymentMethod') as PaymentMethod) || 'other';
+
     const updates: Partial<Transaction> = {
       amount,
       description,
       category,
       date,
       type: editType,
+      paymentMethod,
     };
 
     try {
@@ -2837,6 +2840,24 @@ const App: React.FC = () => {
                   className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white"
                 />
               </div>
+              {editType === 'expense' && (
+                <div>
+                  <label htmlFor="editPaymentMethod" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                    Método de Pagamento
+                  </label>
+                  <select
+                    id="editPaymentMethod"
+                    name="editPaymentMethod"
+                    defaultValue={transactionToEdit.paymentMethod || 'other'}
+                    className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white appearance-none"
+                  >
+                    <option value="credit">💳 Cartão de Crédito</option>
+                    <option value="checking">🏦 Conta Corrente</option>
+                    <option value="pix">⚡ PIX</option>
+                    <option value="other">📋 Outro</option>
+                  </select>
+                </div>
+              )}
               <div className="space-y-3 pt-2">
                 <button
                   type="submit"

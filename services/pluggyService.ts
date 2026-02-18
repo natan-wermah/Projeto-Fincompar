@@ -165,8 +165,8 @@ const mapPluggyTransaction = (
   }
 
   // --- CARTÃO DE CRÉDITO ---
-  // Tudo do cartão é gasto. Valores positivos = estorno (reduz o gasto).
-  const isRefund = tx.amount > 0;
+  // Tudo do cartão é gasto. Valores negativos = estorno/crédito na fatura.
+  const isRefund = tx.amount < 0;
   const category = categorizeTransaction(desc);
 
   return {
