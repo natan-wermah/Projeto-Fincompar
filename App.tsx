@@ -108,6 +108,8 @@ const App: React.FC = () => {
   const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | 'investment' | null>(null);
   const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'year' | 'custom'>('month');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethod | 'all'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -1001,14 +1003,31 @@ const App: React.FC = () => {
     source.start();
   };
 
-  // Filter transactions by period
-  // Processar dados para gráfico de pizza
+  // Processar dados para gráfico de pizza (respeitando filtro de período do dashboard)
   const getChartData = (type: 'income' | 'expense') => {
     const colors = type === 'income'
       ? ['#10B981', '#059669', '#047857', '#065F46'] // Green shades
       : ['#EF4444', '#DC2626', '#B91C1C', '#991B1B', '#7F1D1D', '#F59E0B', '#D97706']; // Red + Orange shades
 
-    const relevantTransactions = transactions.filter(t => t.type === type);
+    // Filtrar por período do dashboard (mesmo filtro do saldo)
+    const now = new Date();
+    let startDate: Date;
+    switch (dashboardPeriod) {
+      case 'week':
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+    }
+
+    const relevantTransactions = transactions.filter(t => {
+      const d = new Date(t.date);
+      return t.type === type && d >= startDate && d <= now;
+    });
     const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
 
     const categoryTotals = categories.map((cat, index) => {
@@ -1055,7 +1074,9 @@ const App: React.FC = () => {
       const transactionDate = new Date(t.date);
       const inRange = transactionDate >= startDate && transactionDate <= endDate;
       const matchesMethod = paymentMethodFilter === 'all' || t.paymentMethod === paymentMethodFilter;
-      return inRange && matchesMethod;
+      const matchesType = typeFilter === 'all' || t.type === typeFilter;
+      const matchesCategory = categoryFilter === 'all' || t.category === categoryFilter;
+      return inRange && matchesMethod && matchesType && matchesCategory;
     });
   };
 
@@ -1076,39 +1097,22 @@ const App: React.FC = () => {
           <p className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Período</p>
 
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setPeriodFilter('week')}
-              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
-                periodFilter === 'week'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                  : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
-              }`}
-            >
-              Semanal
-            </button>
-            <button
-              onClick={() => setPeriodFilter('month')}
-              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
-                periodFilter === 'month'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                  : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
-              }`}
-            >
-              Mensal
-            </button>
-            <button
-              onClick={() => setPeriodFilter('year')}
-              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
-                periodFilter === 'year'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                  : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
-              }`}
-            >
-              Anual
-            </button>
+            {(['week', 'month', 'year'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodFilter(p)}
+                className={`py-3 px-4 rounded-2xl font-bold text-xs transition-all ${
+                  periodFilter === p
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                    : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
+                }`}
+              >
+                {getPeriodLabel(p)}
+              </button>
+            ))}
             <button
               onClick={() => setPeriodFilter('custom')}
-              className={`py-3 px-4 rounded-2xl font-bold text-sm transition-all ${
+              className={`py-3 px-4 rounded-2xl font-bold text-xs transition-all ${
                 periodFilter === 'custom'
                   ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
                   : 'bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
@@ -1149,9 +1153,53 @@ const App: React.FC = () => {
           )}
         </div>
 
+        {/* Filtro de Tipo (Ganho/Gasto) */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-purple pb-1">
+          {([['all', '📊 Todos'], ['income', '📈 Ganhos'], ['expense', '📉 Gastos']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => { setTypeFilter(value); setCategoryFilter('all'); }}
+              className={`whitespace-nowrap py-2.5 px-4 rounded-2xl font-bold text-xs transition-all ${
+                typeFilter === value
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Filtro de Categoria */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-purple pb-1">
+          <button
+            onClick={() => setCategoryFilter('all')}
+            className={`whitespace-nowrap py-2.5 px-4 rounded-2xl font-bold text-xs transition-all ${
+              categoryFilter === 'all'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700'
+            }`}
+          >
+            🏷️ Todas
+          </button>
+          {(typeFilter === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (
+            <button
+              key={cat.name}
+              onClick={() => setCategoryFilter(cat.name)}
+              className={`whitespace-nowrap py-2.5 px-4 rounded-2xl font-bold text-xs transition-all ${
+                categoryFilter === cat.name
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700'
+              }`}
+            >
+              {cat.icon} {cat.name}
+            </button>
+          ))}
+        </div>
+
         {/* Filtro de Método de Pagamento */}
         <div className="flex gap-2 overflow-x-auto scrollbar-purple pb-1">
-          {([['all', '📊 Todos'], ['credit', '💳 Crédito'], ['checking', '🏦 Corrente'], ['pix', '⚡ PIX'], ['other', '📋 Outro']] as const).map(([value, label]) => (
+          {([['all', '💰 Todos'], ['credit', '💳 Crédito'], ['checking', '🏦 Corrente'], ['pix', '⚡ PIX'], ['other', '📋 Outro']] as const).map(([value, label]) => (
             <button
               key={value}
               onClick={() => setPaymentMethodFilter(value)}
@@ -1289,9 +1337,34 @@ const App: React.FC = () => {
     return { income, expense: totalExpense, balance: income - totalExpense, creditNet, checking, pix, otherExpense };
   };
 
+  // Helper para gerar labels com datas para os filtros de período
+  const getPeriodLabel = (period: 'week' | 'month' | 'year', short = false) => {
+    const now = new Date();
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const formatDay = (d: Date) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+
+    switch (period) {
+      case 'week': {
+        const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        return short
+          ? `Sem · ${formatDay(start)} - ${formatDay(now)}`
+          : `Semanal · ${formatDay(start)} - ${formatDay(now)}`;
+      }
+      case 'month': {
+        return short
+          ? `Mês · ${months[now.getMonth()]} ${now.getFullYear()}`
+          : `Mensal · ${months[now.getMonth()]} ${now.getFullYear()}`;
+      }
+      case 'year': {
+        return short
+          ? `Ano · ${now.getFullYear()}`
+          : `Anual · ${now.getFullYear()}`;
+      }
+    }
+  };
+
   const renderDashboard = () => {
     const dashData = getDashboardFilteredData();
-    const periodLabels = { week: 'Sem', month: 'Mês', year: 'Ano' };
 
     return (
     <div className="space-y-6 animate-fadeIn pb-10">
@@ -1332,13 +1405,13 @@ const App: React.FC = () => {
             <button
               key={p}
               onClick={() => setDashboardPeriod(p)}
-              className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+              className={`px-4 py-1.5 rounded-xl text-[10px] font-black tracking-wider transition-all active:scale-95 ${
                 dashboardPeriod === p
                   ? 'bg-white/25 border border-white/30'
                   : 'bg-white/8 border border-white/5 opacity-60'
               }`}
             >
-              {periodLabels[p]}
+              {getPeriodLabel(p, true)}
             </button>
           ))}
         </div>
