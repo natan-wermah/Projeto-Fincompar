@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Transaction, Goal, User, EducationalContent, Category, Investment, InvestmentCategory, PartnerInvitation, generateId, Notification as NotificationType } from './types';
+import { Transaction, Goal, User, EducationalContent, Category, Investment, InvestmentCategory, PartnerInvitation, generateId, Notification as NotificationType, PaymentMethod } from './types';
 import Layout from './components/Layout';
 import AuthScreen from './screens/AuthScreen';
 import { NotificationContainer } from './components/Notification';
@@ -106,6 +106,7 @@ const App: React.FC = () => {
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [transactionTypeSelected, setTransactionTypeSelected] = useState<'income' | 'expense' | 'investment' | null>(null);
   const [periodFilter, setPeriodFilter] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<PaymentMethod | 'all'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -160,7 +161,9 @@ const App: React.FC = () => {
   };
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+  const expenseCharges = transactions.filter(t => t.type === 'expense' && !t.isRefund).reduce((acc, curr) => acc + curr.amount, 0);
+  const expenseRefunds = transactions.filter(t => t.type === 'expense' && t.isRefund).reduce((acc, curr) => acc + curr.amount, 0);
+  const totalExpense = expenseCharges - expenseRefunds;
   const balance = totalIncome - totalExpense;
   const totalInvested = investments.reduce((acc, curr) => acc + curr.amount, 0);
 
@@ -389,13 +392,16 @@ const App: React.FC = () => {
       return;
     }
 
+    const txType = formData.get('type') as 'income' | 'expense';
     const newTransaction: Omit<Transaction, 'id' | 'createdAt'> = {
       amount,
       description: description.trim(),
       category: formData.get('category') as Category,
       date: formData.get('date') as string,
       payerId: user.id,
-      type: formData.get('type') as 'income' | 'expense',
+      type: txType,
+      paymentMethod: txType === 'expense' ? (formData.get('paymentMethod') as PaymentMethod || 'other') : 'other',
+      isRefund: false,
       shared: false,
     };
 
@@ -998,7 +1004,9 @@ const App: React.FC = () => {
 
     return transactions.filter(t => {
       const transactionDate = new Date(t.date);
-      return transactionDate >= startDate && transactionDate <= endDate;
+      const inRange = transactionDate >= startDate && transactionDate <= endDate;
+      const matchesMethod = paymentMethodFilter === 'all' || t.paymentMethod === paymentMethodFilter;
+      return inRange && matchesMethod;
     });
   };
 
@@ -1092,6 +1100,23 @@ const App: React.FC = () => {
           )}
         </div>
 
+        {/* Filtro de Método de Pagamento */}
+        <div className="flex gap-2 overflow-x-auto scrollbar-purple pb-1">
+          {([['all', '📊 Todos'], ['credit', '💳 Crédito'], ['checking', '🏦 Corrente'], ['pix', '⚡ PIX'], ['other', '📋 Outro']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setPaymentMethodFilter(value)}
+              className={`whitespace-nowrap py-2.5 px-4 rounded-2xl font-bold text-xs transition-all ${
+                paymentMethodFilter === value
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Lista de Transações */}
         <div className="space-y-3">
           {filteredTransactions.length === 0 ? (
@@ -1112,12 +1137,17 @@ const App: React.FC = () => {
                       <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{t.description}</p>
                       <p className="text-[10px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest truncate">
                         {t.category} • {new Date(t.date).toLocaleDateString('pt-BR')}
+                        {t.paymentMethod && t.paymentMethod !== 'other' && ` • ${t.paymentMethod === 'credit' ? '💳' : t.paymentMethod === 'pix' ? '⚡' : '🏦'}`}
+                        {t.isRefund && ' • ESTORNO'}
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className={`font-black text-sm whitespace-nowrap ${t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
+                    <p className={`font-black text-sm whitespace-nowrap ${
+                      t.isRefund ? 'text-blue-600 dark:text-blue-400' :
+                      t.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      {t.isRefund ? '+' : t.type === 'income' ? '+' : '-'} R$ {t.amount.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -1196,8 +1226,18 @@ const App: React.FC = () => {
     }
 
     const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = filtered.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
-    return { income, expense, balance: income - expense };
+
+    // Gastos separados por método, descontando estornos
+    const expenses = filtered.filter(t => t.type === 'expense');
+    const creditCharges = expenses.filter(t => t.paymentMethod === 'credit' && !t.isRefund).reduce((acc, t) => acc + t.amount, 0);
+    const creditRefunds = expenses.filter(t => t.paymentMethod === 'credit' && t.isRefund).reduce((acc, t) => acc + t.amount, 0);
+    const creditNet = creditCharges - creditRefunds;
+    const checking = expenses.filter(t => t.paymentMethod === 'checking' && !t.isRefund).reduce((acc, t) => acc + t.amount, 0);
+    const pix = expenses.filter(t => t.paymentMethod === 'pix' && !t.isRefund).reduce((acc, t) => acc + t.amount, 0);
+    const otherExpense = expenses.filter(t => !t.paymentMethod || t.paymentMethod === 'other').reduce((acc, t) => acc + t.amount, 0);
+    const totalExpense = creditNet + checking + pix + otherExpense;
+
+    return { income, expense: totalExpense, balance: income - totalExpense, creditNet, checking, pix, otherExpense };
   };
 
   const renderDashboard = () => {
@@ -1279,6 +1319,51 @@ const App: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Gastos por Método de Pagamento */}
+      {dashData.expense > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-[2rem] p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          <p className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4">Gastos por Método</p>
+          <div className="space-y-3">
+            {dashData.creditNet > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">💳</span>
+                  <span className="font-bold text-sm text-gray-700 dark:text-gray-300">Crédito</span>
+                </div>
+                <span className="font-black text-sm text-red-600 dark:text-red-400">R$ {dashData.creditNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {dashData.checking > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">🏦</span>
+                  <span className="font-bold text-sm text-gray-700 dark:text-gray-300">Conta Corrente</span>
+                </div>
+                <span className="font-black text-sm text-red-600 dark:text-red-400">R$ {dashData.checking.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {dashData.pix > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">⚡</span>
+                  <span className="font-bold text-sm text-gray-700 dark:text-gray-300">PIX</span>
+                </div>
+                <span className="font-black text-sm text-red-600 dark:text-red-400">R$ {dashData.pix.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+            {dashData.otherExpense > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">📋</span>
+                  <span className="font-bold text-sm text-gray-700 dark:text-gray-300">Outros</span>
+                </div>
+                <span className="font-black text-sm text-red-600 dark:text-red-400">R$ {dashData.otherExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <button
         onClick={() => setShowSummary(true)}
@@ -1659,6 +1744,25 @@ const App: React.FC = () => {
                 ))}
               </select>
             </div>
+
+            {transactionTypeSelected === 'expense' && (
+              <div>
+                <label htmlFor="transactionPaymentMethod" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
+                  Método de Pagamento
+                </label>
+                <select
+                  id="transactionPaymentMethod"
+                  name="paymentMethod"
+                  aria-label="Método de pagamento"
+                  className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none appearance-none text-gray-900 dark:text-white"
+                >
+                  <option value="credit">💳 Cartão de Crédito</option>
+                  <option value="checking">🏦 Conta Corrente</option>
+                  <option value="pix">⚡ PIX</option>
+                  <option value="other">📋 Outro</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label htmlFor="transactionDate" className="text-xs font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">

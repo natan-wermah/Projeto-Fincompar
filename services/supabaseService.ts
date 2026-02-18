@@ -21,6 +21,8 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
       category: item.category,
       payerId: item.payer_id,
       type: item.type,
+      paymentMethod: item.payment_method || 'other',
+      isRefund: item.is_refund || false,
       shared: item.shared || false,
       createdAt: item.created_at
     }));
@@ -40,6 +42,8 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       category: transaction.category,
       payer_id: transaction.payerId,
       type: transaction.type,
+      payment_method: transaction.paymentMethod || 'other',
+      is_refund: transaction.isRefund || false,
       shared: transaction.shared || false,
       created_at: new Date().toISOString()
     };
@@ -61,6 +65,8 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       category: data.category,
       payerId: data.payer_id,
       type: data.type,
+      paymentMethod: data.payment_method || 'other',
+      isRefund: data.is_refund || false,
       shared: data.shared || false,
       createdAt: data.created_at
     } : null;
@@ -79,6 +85,8 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
     if (updates.category !== undefined) dbUpdates.category = updates.category;
     if (updates.date !== undefined) dbUpdates.date = updates.date;
     if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.paymentMethod !== undefined) dbUpdates.payment_method = updates.paymentMethod;
+    if (updates.isRefund !== undefined) dbUpdates.is_refund = updates.isRefund;
 
     const { data, error } = await supabase
       .from('transactions')
@@ -97,6 +105,8 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
       category: data.category,
       payerId: data.payer_id,
       type: data.type,
+      paymentMethod: data.payment_method || 'other',
+      isRefund: data.is_refund || false,
       shared: data.shared || false,
       createdAt: data.created_at
     } : null;
@@ -136,6 +146,8 @@ export const getPartnerSharedTransactions = async (partnerId: string): Promise<T
       category: item.category,
       payerId: item.payer_id,
       type: item.type,
+      paymentMethod: item.payment_method || 'other',
+      isRefund: item.is_refund || false,
       shared: item.shared || false,
       createdAt: item.created_at
     }));

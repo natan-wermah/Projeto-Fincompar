@@ -13,6 +13,9 @@ export type InvestmentCategory = 'Ações' | 'FII' | 'ETF' | 'Cripto' | 'Renda F
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
+// Método de pagamento
+export type PaymentMethod = 'credit' | 'checking' | 'pix' | 'other';
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -21,6 +24,8 @@ export interface Transaction {
   category: Category;
   payerId: string;
   type: 'income' | 'expense';
+  paymentMethod?: PaymentMethod;
+  isRefund?: boolean; // Estorno de cartão de crédito (subtrai dos gastos)
   shared?: boolean;
   createdAt?: string; // ISO timestamp
 }

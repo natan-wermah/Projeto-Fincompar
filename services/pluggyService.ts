@@ -1,5 +1,6 @@
 import PluggyClient from 'pluggy-js';
-import { Transaction as FincomparTransaction, Category } from '../types';
+import type { Account } from 'pluggy-js';
+import { Transaction as FincomparTransaction, Category, PaymentMethod } from '../types';
 
 const PLUGGY_CLIENT_ID = import.meta.env.VITE_PLUGGY_CLIENT_ID;
 const PLUGGY_CLIENT_SECRET = import.meta.env.VITE_PLUGGY_CLIENT_SECRET;
@@ -60,8 +61,15 @@ export const createConnectToken = async (userId?: string): Promise<string> => {
   return accessToken;
 };
 
+// Regex para identificar pagamento de fatura de cartão na conta corrente
+const BILL_PAYMENT_REGEX = /pagto?\s*(de\s+)?fatura|pag\s+cart[aã]o|fatura\s+cart|pgto\s+cart/i;
+
+// Regex para identificar PIX
+const PIX_REGEX = /\bpix\b/i;
+
 /**
  * Busca todas as transações de um item (conta bancária conectada)
+ * Separa por tipo de conta e filtra pagamentos de fatura
  */
 export const fetchPluggyTransactions = async (
   itemId: string,
@@ -69,12 +77,10 @@ export const fetchPluggyTransactions = async (
 ): Promise<FincomparTransaction[]> => {
   const client = await getPluggyClient();
 
-  // Buscar todas as contas do item
   const accounts = await client.fetchAccounts(itemId);
   const allTransactions: FincomparTransaction[] = [];
 
   for (const account of accounts.results) {
-    // Buscar transações dos últimos 90 dias
     const now = new Date();
     const from = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
@@ -89,8 +95,12 @@ export const fetchPluggyTransactions = async (
         page,
       });
 
-      const mapped = response.results.map(tx => mapPluggyTransaction(tx, payerId));
-      allTransactions.push(...mapped);
+      for (const tx of response.results) {
+        const mapped = mapPluggyTransaction(tx, payerId, account);
+        // Filtrar pagamentos de fatura na conta corrente (evita duplicação)
+        if (!mapped) continue;
+        allTransactions.push(mapped);
+      }
 
       hasMore = page < response.totalPages;
       page++;
@@ -106,33 +116,67 @@ const EXPENSE_CATEGORY_NAMES = ['Alimentação', 'Moradia', 'Lazer', 'Transporte
 const INCOME_CATEGORY_NAMES = ['Trabalho Principal', 'Clientes', 'Freelas'];
 
 /**
- * Mapeia uma transação do Pluggy para o formato Fincompar
+ * Mapeia uma transação do Pluggy para o formato Fincompar.
+ * Retorna null se a transação deve ser ignorada (ex: pagamento de fatura).
  */
 const mapPluggyTransaction = (
   tx: { id: string; description: string; amount: number; date: Date },
   payerId: string,
-): FincomparTransaction => {
-  const category = categorizeTransaction(tx.description);
+  account: Account,
+): FincomparTransaction | null => {
+  const isCreditCard = account.subtype === 'CREDIT_CARD';
+  const desc = tx.description;
 
-  // Determina tipo baseado na categoria (mais confiável que o sinal do valor)
-  let type: 'income' | 'expense';
-  if (EXPENSE_CATEGORY_NAMES.includes(category)) {
-    type = 'expense';
-  } else if (INCOME_CATEGORY_NAMES.includes(category)) {
-    type = 'income';
-  } else {
-    // Fallback para 'Outros': usa sinal do valor
-    type = tx.amount > 0 ? 'income' : 'expense';
+  // --- CONTA CORRENTE/POUPANÇA ---
+  if (!isCreditCard) {
+    // Ignorar pagamentos de fatura (evita gasto duplicado com o cartão)
+    if (BILL_PAYMENT_REGEX.test(desc) && tx.amount < 0) {
+      return null;
+    }
+
+    // Determinar método de pagamento: PIX ou conta corrente
+    const paymentMethod: PaymentMethod = PIX_REGEX.test(desc) ? 'pix' : 'checking';
+
+    const category = categorizeTransaction(desc);
+    let type: 'income' | 'expense';
+    if (EXPENSE_CATEGORY_NAMES.includes(category)) {
+      type = 'expense';
+    } else if (INCOME_CATEGORY_NAMES.includes(category)) {
+      type = 'income';
+    } else {
+      type = tx.amount > 0 ? 'income' : 'expense';
+    }
+
+    return {
+      id: `pluggy_${tx.id}`,
+      amount: Math.abs(tx.amount),
+      description: desc,
+      date: new Date(tx.date).toISOString().split('T')[0],
+      category,
+      payerId,
+      type,
+      paymentMethod,
+      isRefund: false,
+      shared: false,
+      createdAt: new Date().toISOString(),
+    };
   }
+
+  // --- CARTÃO DE CRÉDITO ---
+  // Tudo do cartão é gasto. Valores positivos = estorno (reduz o gasto).
+  const isRefund = tx.amount > 0;
+  const category = categorizeTransaction(desc);
 
   return {
     id: `pluggy_${tx.id}`,
     amount: Math.abs(tx.amount),
-    description: tx.description,
+    description: isRefund ? `Estorno: ${desc}` : desc,
     date: new Date(tx.date).toISOString().split('T')[0],
     category,
     payerId,
-    type,
+    type: 'expense',
+    paymentMethod: 'credit',
+    isRefund,
     shared: false,
     createdAt: new Date().toISOString(),
   };
