@@ -634,6 +634,7 @@ const App: React.FC = () => {
     }
 
     const paymentMethod = (formData.get('editPaymentMethod') as PaymentMethod) || 'other';
+    const applyToAll = formData.get('editApplyToAll') === 'on';
 
     const updates: Partial<Transaction> = {
       amount,
@@ -646,16 +647,43 @@ const App: React.FC = () => {
 
     try {
       if (user?.email === 'demo@fincompar.com') {
-        setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
-      } else {
-        const updated = await updateTransactionDB(transactionToEdit.id, updates);
-        if (!updated) {
-          addNotification('Erro ao editar transação', 'error');
-          return;
+        if (applyToAll) {
+          const originalDesc = transactionToEdit.description;
+          setTransactions(prev => prev.map(t =>
+            t.description === originalDesc && t.payerId === user?.id
+              ? { ...t, category, type: editType, paymentMethod }
+              : t
+          ));
+        } else {
+          setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
         }
-        setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
+      } else {
+        if (applyToAll) {
+          // Aplicar categoria, tipo e método para todas com mesma descrição
+          const originalDesc = transactionToEdit.description;
+          const matching = transactions.filter(t => t.description === originalDesc && t.payerId === user?.id);
+          let updatedCount = 0;
+          for (const tx of matching) {
+            const bulkUpdates: Partial<Transaction> = { category, type: editType, paymentMethod };
+            const result = await updateTransactionDB(tx.id, bulkUpdates);
+            if (result) updatedCount++;
+          }
+          setTransactions(prev => prev.map(t =>
+            t.description === originalDesc && t.payerId === user?.id
+              ? { ...t, category, type: editType, paymentMethod }
+              : t
+          ));
+          addNotification(`Categoria atualizada em ${updatedCount} transações!`, 'success');
+        } else {
+          const updated = await updateTransactionDB(transactionToEdit.id, updates);
+          if (!updated) {
+            addNotification('Erro ao editar transação', 'error');
+            return;
+          }
+          setTransactions(prev => prev.map(t => t.id === transactionToEdit.id ? { ...t, ...updates } : t));
+          addNotification('Transação editada com sucesso!', 'success');
+        }
       }
-      addNotification('Transação editada com sucesso!', 'success');
     } catch {
       addNotification('Erro ao editar transação', 'error');
     } finally {
@@ -2858,6 +2886,21 @@ const App: React.FC = () => {
                   </select>
                 </div>
               )}
+              {(() => {
+                const sameDescCount = transactions.filter(t => t.description === transactionToEdit.description && t.payerId === user?.id).length;
+                return sameDescCount > 1 ? (
+                  <label className="flex items-center gap-3 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/40 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      name="editApplyToAll"
+                      className="w-5 h-5 rounded accent-purple-600"
+                    />
+                    <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                      Aplicar para todas "{transactionToEdit.description}" ({sameDescCount})
+                    </span>
+                  </label>
+                ) : null;
+              })()}
               <div className="space-y-3 pt-2">
                 <button
                   type="submit"
