@@ -23,6 +23,7 @@ export const getTransactions = async (userId: string): Promise<Transaction[]> =>
       type: item.type,
       paymentMethod: item.payment_method || 'other',
       isRefund: item.is_refund || false,
+      source: item.source || 'manual',
       shared: item.shared || false,
       createdAt: item.created_at
     }));
@@ -44,6 +45,7 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       type: transaction.type,
       payment_method: transaction.paymentMethod || 'other',
       is_refund: transaction.isRefund || false,
+      source: transaction.source || 'manual',
       shared: transaction.shared || false,
       created_at: new Date().toISOString()
     };
@@ -67,6 +69,7 @@ export const addTransaction = async (transaction: Omit<Transaction, 'id' | 'crea
       type: data.type,
       paymentMethod: data.payment_method || 'other',
       isRefund: data.is_refund || false,
+      source: data.source || 'manual',
       shared: data.shared || false,
       createdAt: data.created_at
     } : null;
@@ -107,6 +110,7 @@ export const updateTransaction = async (id: string, updates: Partial<Transaction
       type: data.type,
       paymentMethod: data.payment_method || 'other',
       isRefund: data.is_refund || false,
+      source: data.source || 'manual',
       shared: data.shared || false,
       createdAt: data.created_at
     } : null;
@@ -124,6 +128,22 @@ export const deleteTransaction = async (id: string): Promise<boolean> => {
   } catch (error) {
     console.error('Error deleting transaction:', error);
     return false;
+  }
+};
+
+export const deleteTransactionsBySource = async (userId: string, source: string): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('payer_id', userId)
+      .eq('source', source)
+      .select('id');
+    if (error) throw error;
+    return data?.length || 0;
+  } catch (error) {
+    console.error('Error deleting transactions by source:', error);
+    return 0;
   }
 };
 
@@ -148,6 +168,7 @@ export const getPartnerSharedTransactions = async (partnerId: string): Promise<T
       type: item.type,
       paymentMethod: item.payment_method || 'other',
       isRefund: item.is_refund || false,
+      source: item.source || 'manual',
       shared: item.shared || false,
       createdAt: item.created_at
     }));

@@ -16,6 +16,9 @@ export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 // Método de pagamento
 export type PaymentMethod = 'credit' | 'checking' | 'pix' | 'other';
 
+// Origem da transação
+export type TransactionSource = 'manual' | 'pluggy';
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -26,6 +29,7 @@ export interface Transaction {
   type: 'income' | 'expense';
   paymentMethod?: PaymentMethod;
   isRefund?: boolean; // Estorno de cartão de crédito (subtrai dos gastos)
+  source?: TransactionSource; // Origem: manual ou pluggy
   shared?: boolean;
   createdAt?: string; // ISO timestamp
 }

@@ -62,7 +62,9 @@ export const createConnectToken = async (userId?: string): Promise<string> => {
 };
 
 // Regex para identificar pagamento de fatura de cartão na conta corrente
-const BILL_PAYMENT_REGEX = /pagto?\s*(de\s+)?fatura|pag\s+cart[aã]o|fatura\s+cart|pgto\s+cart/i;
+// Cobre: pag fatura, pagto fatura, pagamento fatura, pagamento de fatura, pag*fatura,
+//         pag cartão, pagamento cartao, fatura cart..., pgto cart...
+const BILL_PAYMENT_REGEX = /pag\w*\s*[*\s]*(de\s+)?fatura|pag\w*\s+cart[aã]o|fatura\s+cart|pgto?\s+cart/i;
 
 // Regex para identificar PIX
 const PIX_REGEX = /\bpix\b/i;

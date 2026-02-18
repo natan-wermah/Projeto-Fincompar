@@ -29,6 +29,7 @@ import {
   deleteInvestment as deleteInvestmentDB,
   deleteGoal as deleteGoalDB,
   deleteTransaction as deleteTransactionDB,
+  deleteTransactionsBySource,
   updateTransaction as updateTransactionDB,
   getPartnerSharedTransactions,
   sendPartnerInvitation,
@@ -402,6 +403,7 @@ const App: React.FC = () => {
       type: txType,
       paymentMethod: txType === 'expense' ? (formData.get('paymentMethod') as PaymentMethod || 'other') : 'other',
       isRefund: false,
+      source: 'manual',
       shared: false,
     };
 
@@ -713,6 +715,9 @@ const App: React.FC = () => {
             date: tx.date,
             payerId: tx.payerId,
             type: tx.type,
+            paymentMethod: tx.paymentMethod || 'other',
+            isRefund: tx.isRefund || false,
+            source: 'pluggy',
             shared: false,
           });
           if (result) {
@@ -756,16 +761,11 @@ const App: React.FC = () => {
       // Ignora erro se item já não existe
     }
 
-    if (deleteHistory) {
-      const importedIds: string[] = JSON.parse(localStorage.getItem('pluggy_imported_ids') || '[]');
-      if (importedIds.length > 0) {
-        for (const txId of importedIds) {
-          try { await deleteTransactionDB(txId); } catch { /* ignora */ }
-        }
-        setTransactions(prev => prev.filter(t => !importedIds.includes(t.id)));
-      }
+    if (deleteHistory && user?.id) {
+      const deletedCount = await deleteTransactionsBySource(user.id, 'pluggy');
+      setTransactions(prev => prev.filter(t => t.source !== 'pluggy'));
       localStorage.removeItem('pluggy_imported_ids');
-      addNotification('Banco desconectado e histórico importado apagado.', 'info');
+      addNotification(`Banco desconectado. ${deletedCount} transações importadas apagadas.`, 'info');
     } else {
       addNotification('Banco desconectado. Transações mantidas.', 'info');
     }
@@ -773,6 +773,24 @@ const App: React.FC = () => {
     setConnectedItemId(null);
     localStorage.removeItem('pluggy_item_id');
     setShowDisconnectConfirm(false);
+  };
+
+  // TODO: REMOVER - Botão temporário para testes
+  const handleDeleteAllTransactions = async () => {
+    if (!user?.id) return;
+    if (!window.confirm('⚠️ TESTE: Excluir TODAS as transações? Isso não pode ser desfeito.')) return;
+    try {
+      const { error } = await (await import('./supabaseClient')).supabase
+        .from('transactions')
+        .delete()
+        .eq('payer_id', user.id);
+      if (error) throw error;
+      setTransactions([]);
+      addNotification('Todas as transações foram excluídas.', 'info');
+    } catch (error) {
+      console.error('Erro ao excluir transações:', error);
+      addNotification('Erro ao excluir transações.', 'error');
+    }
   };
 
   const handleAddInvestment = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -1246,6 +1264,14 @@ const App: React.FC = () => {
 
     return (
     <div className="space-y-6 animate-fadeIn pb-10">
+      {/* TODO: REMOVER - Botão de teste */}
+      <button
+        onClick={handleDeleteAllTransactions}
+        className="w-full bg-red-500 text-white font-black py-3 rounded-2xl active:scale-95 transition-all text-xs uppercase tracking-wider"
+      >
+        EXCLUIR TODAS AS TRANSACOES (TESTE)
+      </button>
+
       <div className="bg-purple-600 dark:bg-purple-700 rounded-[2rem] p-7 text-white shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
 
@@ -2063,6 +2089,7 @@ const App: React.FC = () => {
             {isLoadingPluggy ? <><Loader2 size={16} className="animate-spin" /> CONECTANDO...</> : <><Building2 size={16} /> CONECTAR BANCO</>}
           </button>
         )}
+
       </div>
 
       <button
