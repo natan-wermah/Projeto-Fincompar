@@ -2230,47 +2230,58 @@ const App: React.FC = () => {
         {/* Categorias customizadas existentes */}
         {(['expense', 'income', 'investment'] as const).map(type => {
           const custom = user.customCategories?.[type] || [];
-          if (custom.length === 0) return null;
-          const labels = { expense: 'Gastos', income: 'Ganhos', investment: 'Investimentos' };
+          const labels = { expense: '📉 Gastos', income: '📈 Ganhos', investment: '💰 Investimentos' };
           return (
             <div key={type} className="space-y-2">
               <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{labels[type]} personalizados</p>
-              {custom.map((cat: { name: string; icon: string }) => {
+              {custom.length === 0 ? (
+                <p className="text-xs text-gray-300 dark:text-gray-600 italic px-1">Nenhuma categoria personalizada</p>
+              ) : custom.map((cat: { name: string; icon: string }) => {
                 const isEditing = editingCategory?.type === type && editingCategory?.name === cat.name;
                 return isEditing ? (
-                  <div key={cat.name} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 p-2 rounded-xl">
+                  <div key={cat.name} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 p-3 rounded-2xl">
                     <input
                       type="text"
                       value={editingCategory.newIcon}
                       onChange={e => setEditingCategory(prev => prev ? { ...prev, newIcon: e.target.value } : prev)}
                       maxLength={2}
-                      className="w-10 bg-white dark:bg-gray-700 rounded-lg py-1 px-2 text-center text-sm font-bold outline-none"
+                      className="w-12 h-10 bg-white dark:bg-gray-700 rounded-xl text-center text-base font-bold outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <input
                       type="text"
                       value={editingCategory.newName}
                       onChange={e => setEditingCategory(prev => prev ? { ...prev, newName: e.target.value } : prev)}
                       autoFocus
-                      className="flex-1 bg-white dark:bg-gray-700 rounded-lg py-1 px-2 text-xs font-bold outline-none"
+                      className="flex-1 h-10 bg-white dark:bg-gray-700 rounded-xl px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-purple-500"
                     />
-                    <button onClick={handleSaveEditCategory} className="text-green-500 p-1"><Check size={14} /></button>
-                    <button onClick={() => setEditingCategory(null)} className="text-gray-400 p-1"><X size={14} /></button>
+                    <button
+                      onClick={handleSaveEditCategory}
+                      className="w-10 h-10 flex items-center justify-center bg-green-500 text-white rounded-xl active:scale-95 transition-all"
+                    >
+                      <Check size={16} />
+                    </button>
+                    <button
+                      onClick={() => setEditingCategory(null)}
+                      className="w-10 h-10 flex items-center justify-center bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded-xl active:scale-95 transition-all"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                 ) : (
-                  <div key={cat.name} className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-2 rounded-xl text-xs font-bold">
-                    <span>{cat.icon}</span>
-                    <span className="flex-1">{cat.name}</span>
+                  <div key={cat.name} className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700 px-4 py-3 rounded-2xl">
+                    <span className="text-lg">{cat.icon}</span>
+                    <span className="flex-1 text-sm font-bold text-gray-700 dark:text-gray-200">{cat.name}</span>
                     <button
                       onClick={() => setEditingCategory({ type, name: cat.name, icon: cat.icon, newName: cat.name, newIcon: cat.icon })}
-                      className="text-purple-400 hover:text-purple-600 transition-colors p-0.5"
+                      className="w-9 h-9 flex items-center justify-center bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 rounded-xl active:scale-95 transition-all"
                     >
-                      <Edit2 size={11} />
+                      <Edit2 size={15} />
                     </button>
                     <button
                       onClick={() => handleRemoveCustomCategory(type, cat.name)}
-                      className="text-purple-400 hover:text-red-500 transition-colors p-0.5"
+                      className="w-9 h-9 flex items-center justify-center bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-xl active:scale-95 transition-all"
                     >
-                      <X size={11} />
+                      <Trash2 size={15} />
                     </button>
                   </div>
                 );
