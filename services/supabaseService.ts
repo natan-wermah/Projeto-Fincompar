@@ -153,6 +153,7 @@ export const getPartnerSharedTransactions = async (partnerId: string): Promise<T
       .from('transactions')
       .select('*')
       .eq('payer_id', partnerId)
+      .eq('shared', true)
       .order('date', { ascending: false });
 
     if (error) throw error;
