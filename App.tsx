@@ -118,7 +118,7 @@ const App: React.FC = () => {
   });
   const [showChartModal, setShowChartModal] = useState<'income' | 'expense' | null>(null);
   const [showInvestmentsModal, setShowInvestmentsModal] = useState(false);
-  const [balanceMode, setBalanceMode] = useState<'individual' | 'couple'>('individual');
+  const [balanceMode, setBalanceMode] = useState<'individual' | 'couple' | 'partner'>('individual');
   const [dashboardPeriod, setDashboardPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [partnerTransactions, setPartnerTransactions] = useState<Transaction[]>([]);
   const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
@@ -1389,11 +1389,13 @@ const App: React.FC = () => {
       return d >= startDate && d <= now;
     };
 
-    let filtered = transactions.filter(filterByDate);
-
-    if (balanceMode === 'couple' && partnerTransactions.length > 0) {
-      const partnerFiltered = partnerTransactions.filter(filterByDate);
-      filtered = [...filtered, ...partnerFiltered];
+    let filtered: Transaction[];
+    if (balanceMode === 'partner') {
+      filtered = partnerTransactions.filter(filterByDate);
+    } else if (balanceMode === 'couple') {
+      filtered = [...transactions.filter(filterByDate), ...partnerTransactions.filter(filterByDate)];
+    } else {
+      filtered = transactions.filter(filterByDate);
     }
 
     const income = filtered.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
@@ -1455,7 +1457,7 @@ const App: React.FC = () => {
 
         <div className="flex justify-between items-center mb-1">
           <p className="text-purple-100 dark:text-purple-200 text-sm font-semibold opacity-80">
-            {balanceMode === 'couple' ? 'Saldo do casal' : 'Saldo total'}
+            {balanceMode === 'couple' ? 'Saldo do casal' : balanceMode === 'partner' ? `Saldo de ${partner?.name?.split(' ')[0] || 'Parceiro(a)'}` : 'Saldo total'}
           </p>
         </div>
 
@@ -1517,27 +1519,24 @@ const App: React.FC = () => {
 
       {/* Seletor Individual / Casal */}
       {partner?.id && (
-        <div className="bg-white dark:bg-gray-800 rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-2">
-          <button
-            onClick={() => setBalanceMode('individual')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
-              balanceMode === 'individual'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <UserIcon size={16} /> Individual
-          </button>
-          <button
-            onClick={() => setBalanceMode('couple')}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
-              balanceMode === 'couple'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
-                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >
-            <Users size={16} /> Casal
-          </button>
+        <div className="bg-white dark:bg-gray-800 rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-2 overflow-x-auto scrollbar-purple">
+          {([
+            { mode: 'individual', icon: <UserIcon size={15} />, label: 'Individual' },
+            { mode: 'couple',     icon: <Users size={15} />,    label: 'Casal' },
+            { mode: 'partner',    icon: <Heart size={15} />,    label: partner.name.split(' ')[0] || 'Parceiro(a)' },
+          ] as const).map(({ mode, icon, label }) => (
+            <button
+              key={mode}
+              onClick={() => setBalanceMode(mode)}
+              className={`flex-1 min-w-[100px] whitespace-nowrap flex items-center justify-center gap-1.5 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
+                balanceMode === mode
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              {icon} {label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1996,7 +1995,7 @@ const App: React.FC = () => {
                 required
                 defaultValue={new Date().toISOString().split('T')[0]}
                 aria-label="Data da transação"
-                className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
+                className="w-full min-w-0 bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-4 font-bold focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white text-sm"
               />
             </div>
           </div>
@@ -2232,13 +2231,13 @@ const App: React.FC = () => {
             <h3 className="font-black text-xl flex items-center gap-2"><Heart size={22} fill="white" /> Meu amor</h3>
             <Settings size={20} className="opacity-60" onClick={() => setIsEditingPartner(true)} />
           </div>
-          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20 mb-4">
-            <img src={partner.avatar} className="w-14 h-14 rounded-2xl border-2 border-white/30 object-cover shadow-inner" />
-            <div className="flex-1">
-              <p className="font-black text-lg">{partner.name}</p>
-              <p className="text-xs text-green-100 font-semibold opacity-80 italic">{partner.email}</p>
+          <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20 mb-4">
+            <img src={partner.avatar} className="w-12 h-12 shrink-0 rounded-2xl border-2 border-white/30 object-cover shadow-inner" />
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-base truncate">{partner.name}</p>
+              <p className="text-xs text-green-100 font-semibold opacity-80 italic truncate">{partner.email}</p>
             </div>
-            <div className="bg-white/20 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm border border-white/10">Sincronizado</div>
+            <div className="shrink-0 bg-white/20 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm border border-white/10">✓ Vinculado</div>
           </div>
           {/* Botões de compartilhamento em massa */}
           <div className="grid grid-cols-2 gap-3">
