@@ -133,6 +133,8 @@ const App: React.FC = () => {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('');
   const [newCategoryType, setNewCategoryType] = useState<'expense' | 'income' | 'investment'>('expense');
+  const [editingCategory, setEditingCategory] = useState<{ type: 'expense' | 'income' | 'investment'; name: string; icon: string; newName: string; newIcon: string } | null>(null);
+  const [contributionMode, setContributionMode] = useState<'add' | 'subtract'>('add');
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
@@ -476,9 +478,13 @@ const App: React.FC = () => {
     }
 
     try {
-      const updatedGoal = { ...contributionGoal };
-      updatedGoal.contributions[contributorId] = (updatedGoal.contributions[contributorId] || 0) + amount;
-      updatedGoal.currentAmount += amount;
+      const delta = contributionMode === 'subtract' ? -amount : amount;
+      const updatedGoal = { ...contributionGoal, contributions: { ...contributionGoal.contributions } };
+      const currentContrib = updatedGoal.contributions[contributorId] || 0;
+      const newContrib = Math.max(0, currentContrib + delta);
+      const actualDelta = newContrib - currentContrib;
+      updatedGoal.contributions[contributorId] = newContrib;
+      updatedGoal.currentAmount = Math.max(0, updatedGoal.currentAmount + actualDelta);
 
       let savedGoal: Goal | null = null;
 
@@ -498,7 +504,13 @@ const App: React.FC = () => {
           prev.map((g) => (g.id === contributionGoal.id ? savedGoal : g))
         );
         setContributionGoal(null);
-        addNotification(`Contribuição de R$ ${amount.toFixed(2)} adicionada!`, 'success');
+        setContributionMode('add');
+        addNotification(
+          contributionMode === 'subtract'
+            ? `R$ ${Math.abs(actualDelta).toFixed(2)} retirado da meta!`
+            : `Contribuição de R$ ${amount.toFixed(2)} adicionada!`,
+          'success'
+        );
       } else {
         addNotification('Erro ao salvar contribuição', 'error');
       }
@@ -880,6 +892,23 @@ const App: React.FC = () => {
     await updateUserProfile(user.id, { customCategories: updated });
     setUser(prev => prev ? { ...prev, customCategories: updated } : prev);
     addNotification('Categoria removida.', 'info');
+  };
+
+  const handleSaveEditCategory = async () => {
+    if (!editingCategory || !user?.id || !editingCategory.newName.trim()) return;
+    const current = user.customCategories || { expense: [], income: [], investment: [] };
+    const updated = {
+      ...current,
+      [editingCategory.type]: (current[editingCategory.type] || []).map((c: { name: string; icon: string }) =>
+        c.name === editingCategory.name
+          ? { name: editingCategory.newName.trim(), icon: editingCategory.newIcon.trim() || c.icon }
+          : c
+      ),
+    };
+    await updateUserProfile(user.id, { customCategories: updated });
+    setUser(prev => prev ? { ...prev, customCategories: updated } : prev);
+    setEditingCategory(null);
+    addNotification('Categoria atualizada!', 'success');
   };
 
   // TODO: REMOVER - Botão temporário para testes
@@ -2204,22 +2233,48 @@ const App: React.FC = () => {
           if (custom.length === 0) return null;
           const labels = { expense: 'Gastos', income: 'Ganhos', investment: 'Investimentos' };
           return (
-            <div key={type}>
-              <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">{labels[type]} personalizados</p>
-              <div className="flex flex-wrap gap-2">
-                {custom.map((cat: { name: string; icon: string }) => (
-                  <div key={cat.name} className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-xl text-xs font-bold">
+            <div key={type} className="space-y-2">
+              <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">{labels[type]} personalizados</p>
+              {custom.map((cat: { name: string; icon: string }) => {
+                const isEditing = editingCategory?.type === type && editingCategory?.name === cat.name;
+                return isEditing ? (
+                  <div key={cat.name} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-900/30 p-2 rounded-xl">
+                    <input
+                      type="text"
+                      value={editingCategory.newIcon}
+                      onChange={e => setEditingCategory(prev => prev ? { ...prev, newIcon: e.target.value } : prev)}
+                      maxLength={2}
+                      className="w-10 bg-white dark:bg-gray-700 rounded-lg py-1 px-2 text-center text-sm font-bold outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={editingCategory.newName}
+                      onChange={e => setEditingCategory(prev => prev ? { ...prev, newName: e.target.value } : prev)}
+                      autoFocus
+                      className="flex-1 bg-white dark:bg-gray-700 rounded-lg py-1 px-2 text-xs font-bold outline-none"
+                    />
+                    <button onClick={handleSaveEditCategory} className="text-green-500 p-1"><Check size={14} /></button>
+                    <button onClick={() => setEditingCategory(null)} className="text-gray-400 p-1"><X size={14} /></button>
+                  </div>
+                ) : (
+                  <div key={cat.name} className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-2 rounded-xl text-xs font-bold">
                     <span>{cat.icon}</span>
-                    <span>{cat.name}</span>
+                    <span className="flex-1">{cat.name}</span>
+                    <button
+                      onClick={() => setEditingCategory({ type, name: cat.name, icon: cat.icon, newName: cat.name, newIcon: cat.icon })}
+                      className="text-purple-400 hover:text-purple-600 transition-colors p-0.5"
+                    >
+                      <Edit2 size={11} />
+                    </button>
                     <button
                       onClick={() => handleRemoveCustomCategory(type, cat.name)}
-                      className="ml-1 text-purple-400 hover:text-red-500 transition-colors"
+                      className="text-purple-400 hover:text-red-500 transition-colors p-0.5"
                     >
-                      <X size={12} />
+                      <X size={11} />
                     </button>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           );
         })}
@@ -2240,20 +2295,34 @@ const App: React.FC = () => {
             <div className="shrink-0 bg-white/20 px-3 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm border border-white/10">✓ Vinculado</div>
           </div>
           {/* Botões de compartilhamento em massa */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => handleToggleAllShared(true)}
-              className="bg-white/15 border border-white/20 backdrop-blur-md py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2"
-            >
-              <Share2 size={14} /> Compartilhar tudo
-            </button>
-            <button
-              onClick={() => handleToggleAllShared(false)}
-              className="bg-white/10 border border-white/10 backdrop-blur-md py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2 opacity-70"
-            >
-              <UserIcon size={14} /> Tornar individual
-            </button>
-          </div>
+          {(() => {
+            const allShared = transactions.length > 0 && transactions.every(t => t.shared);
+            const noneShared = transactions.length === 0 || transactions.every(t => !t.shared);
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleToggleAllShared(true)}
+                  className={`py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                    allShared
+                      ? 'bg-white text-green-600 shadow-md'
+                      : 'bg-white/15 border border-white/20 text-white'
+                  }`}
+                >
+                  <Share2 size={14} /> Compartilhar tudo
+                </button>
+                <button
+                  onClick={() => handleToggleAllShared(false)}
+                  className={`py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2 ${
+                    noneShared
+                      ? 'bg-white text-gray-700 shadow-md'
+                      : 'bg-white/10 border border-white/10 text-white opacity-70'
+                  }`}
+                >
+                  <UserIcon size={14} /> Tornar individual
+                </button>
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-6 shadow-sm border border-gray-100 dark:border-gray-700">
@@ -2637,17 +2706,35 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            <form onSubmit={handleContribution} className="space-y-8">
+            <form onSubmit={handleContribution} className="space-y-6">
+              {/* Modo: Adicionar ou Retirar */}
+              <div className="flex gap-2 bg-gray-50 dark:bg-gray-700 p-1.5 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => setContributionMode('add')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${contributionMode === 'add' ? 'bg-purple-600 text-white shadow' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  + Adicionar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setContributionMode('subtract')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${contributionMode === 'subtract' ? 'bg-red-500 text-white shadow' : 'text-gray-500 dark:text-gray-400'}`}
+                >
+                  − Retirar
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <label className="cursor-pointer group">
-                  <input type="radio" name="contributor" value="user_1" defaultChecked className="hidden peer" />
+                  <input type="radio" name="contributor" value={user.id} defaultChecked className="hidden peer" />
                   <div className="flex flex-col items-center p-5 rounded-[2rem] border-2 border-gray-50 dark:border-gray-700 peer-checked:border-purple-600 peer-checked:bg-purple-50 dark:peer-checked:bg-purple-900/30 transition-all shadow-sm">
                     <img src={user.avatar} className="w-14 h-14 rounded-2xl mb-3 object-cover shadow-md" />
                     <span className="font-black text-xs text-gray-700 dark:text-gray-300 uppercase">{user.name.split(' ')[0]}</span>
                   </div>
                 </label>
                 <label className="cursor-pointer group">
-                  <input type="radio" name="contributor" value="user_2" className="hidden peer" />
+                  <input type="radio" name="contributor" value={partner.id} className="hidden peer" />
                   <div className="flex flex-col items-center p-5 rounded-[2rem] border-2 border-gray-50 dark:border-gray-700 peer-checked:border-purple-600 peer-checked:bg-purple-50 dark:peer-checked:bg-purple-900/30 transition-all shadow-sm">
                     <img src={partner.avatar} className="w-14 h-14 rounded-2xl mb-3 object-cover shadow-md" />
                     <span className="font-black text-xs text-gray-700 dark:text-gray-300 uppercase">{partner.name.split(' ')[0]}</span>
@@ -2657,7 +2744,7 @@ const App: React.FC = () => {
 
               <div>
                 <label htmlFor="contributionAmount" className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest block mb-2">
-                  Quanto vai guardar?
+                  {contributionMode === 'add' ? 'Quanto vai guardar?' : 'Quanto vai retirar?'}
                 </label>
                 <div className="relative">
                   <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 dark:text-gray-600 font-black text-xl" aria-hidden="true">
@@ -2691,9 +2778,9 @@ const App: React.FC = () => {
                  <button
                    type="submit"
                    aria-label="Confirmar contribuição"
-                   className="flex-[2] bg-purple-600 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-purple-100 dark:shadow-purple-900/30 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                   className={`flex-[2] text-white font-black py-5 rounded-[2rem] shadow-xl active:scale-95 transition-all text-sm uppercase tracking-widest ${contributionMode === 'add' ? 'bg-purple-600 shadow-purple-100 dark:shadow-purple-900/30' : 'bg-red-500 shadow-red-100 dark:shadow-red-900/30'}`}
                  >
-                   Confirmar
+                   {contributionMode === 'add' ? 'Confirmar' : 'Retirar'}
                  </button>
               </div>
             </form>
