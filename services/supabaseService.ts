@@ -153,7 +153,6 @@ export const getPartnerSharedTransactions = async (partnerId: string): Promise<T
       .from('transactions')
       .select('*')
       .eq('payer_id', partnerId)
-      .eq('shared', true)
       .order('date', { ascending: false });
 
     if (error) throw error;
@@ -303,7 +302,9 @@ export const getUserProfile = async (userId: string): Promise<User | null> => {
       name: data.name,
       email: data.email,
       partnerId: data.partner_id,
-      avatar: data.avatar
+      avatar: data.avatar,
+      customCategories: data.custom_categories || { expense: [], income: [], investment: [] },
+      pluggyItemId: data.pluggy_item_id || null,
     } : null;
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -319,6 +320,8 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.partnerId !== undefined) dbUpdates.partner_id = updates.partnerId;
     if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
+    if (updates.customCategories !== undefined) dbUpdates.custom_categories = updates.customCategories;
+    if (updates.pluggyItemId !== undefined) dbUpdates.pluggy_item_id = updates.pluggyItemId;
 
     const { data, error } = await supabase
       .from('users')
@@ -335,7 +338,9 @@ export const updateUserProfile = async (userId: string, updates: Partial<User>):
       name: data.name,
       email: data.email,
       partnerId: data.partner_id,
-      avatar: data.avatar
+      avatar: data.avatar,
+      customCategories: data.custom_categories || { expense: [], income: [], investment: [] },
+      pluggyItemId: data.pluggy_item_id || null,
     } : null;
   } catch (error) {
     console.error('Error updating user profile:', error);

@@ -130,10 +130,18 @@ const App: React.FC = () => {
   const [isSyncingBank, setIsSyncingBank] = useState(false);
   const [isLoadingPluggy, setIsLoadingPluggy] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState<'expense' | 'income' | 'investment'>('expense');
 
   // Debounce transactions and goals for AI summary
   const debouncedTransactions = useDebounce(transactions, 2000);
   const debouncedGoals = useDebounce(goals, 2000);
+
+  // Categorias efetivas = padrão + customizadas pelo usuário
+  const effectiveExpenseCategories = [...EXPENSE_CATEGORIES, ...(user?.customCategories?.expense || [])];
+  const effectiveIncomeCategories = [...INCOME_CATEGORIES, ...(user?.customCategories?.income || [])];
+  const effectiveInvestmentCategories = [...INVESTMENT_CATEGORIES, ...(user?.customCategories?.investment || [])];
 
   // Dark mode effect
   useEffect(() => {
@@ -340,8 +348,16 @@ const App: React.FC = () => {
           email: profile?.email || authUser.email || email,
           partnerId: profile?.partnerId || null,
           avatar: profile?.avatar || INITIAL_USER.avatar,
+          customCategories: profile?.customCategories,
+          pluggyItemId: profile?.pluggyItemId,
         };
         setUser(currentUser);
+
+        // Restaurar conexão bancária do DB (cross-device sync)
+        if (profile?.pluggyItemId && !connectedItemId) {
+          setConnectedItemId(profile.pluggyItemId);
+          localStorage.setItem('pluggy_item_id', profile.pluggyItemId);
+        }
 
         // Se tem parceiro vinculado, carregar dados do parceiro
         if (currentUser.partnerId) {
@@ -711,6 +727,11 @@ const App: React.FC = () => {
     const itemId = data.item.id;
     setConnectedItemId(itemId);
     localStorage.setItem('pluggy_item_id', itemId);
+    // Persistir no DB para sincronizar entre dispositivos
+    if (user?.id) {
+      await updateUserProfile(user.id, { pluggyItemId: itemId });
+      setUser(prev => prev ? { ...prev, pluggyItemId: itemId } : prev);
+    }
     setShowPluggyConnect(false);
     setPluggyConnectToken(null);
     addNotification('Banco conectado com sucesso! Sincronizando transações...', 'success');
@@ -805,7 +826,40 @@ const App: React.FC = () => {
 
     setConnectedItemId(null);
     localStorage.removeItem('pluggy_item_id');
+    if (user?.id) {
+      await updateUserProfile(user.id, { pluggyItemId: null });
+      setUser(prev => prev ? { ...prev, pluggyItemId: null } : prev);
+    }
     setShowDisconnectConfirm(false);
+  };
+
+  const handleAddCustomCategory = async () => {
+    if (!newCategoryName.trim() || !user?.id) return;
+    const icon = newCategoryIcon.trim() || '📌';
+    const current = user.customCategories || { expense: [], income: [], investment: [] };
+    const updated = {
+      ...current,
+      [newCategoryType]: [...(current[newCategoryType] || []), { name: newCategoryName.trim(), icon }],
+    };
+    const saved = await updateUserProfile(user.id, { customCategories: updated });
+    if (saved) {
+      setUser(prev => prev ? { ...prev, customCategories: updated } : prev);
+      setNewCategoryName('');
+      setNewCategoryIcon('');
+      addNotification('Categoria adicionada!', 'success');
+    }
+  };
+
+  const handleRemoveCustomCategory = async (type: 'expense' | 'income' | 'investment', name: string) => {
+    if (!user?.id) return;
+    const current = user.customCategories || { expense: [], income: [], investment: [] };
+    const updated = {
+      ...current,
+      [type]: (current[type] || []).filter((c: { name: string }) => c.name !== name),
+    };
+    await updateUserProfile(user.id, { customCategories: updated });
+    setUser(prev => prev ? { ...prev, customCategories: updated } : prev);
+    addNotification('Categoria removida.', 'info');
   };
 
   // TODO: REMOVER - Botão temporário para testes
@@ -1028,7 +1082,7 @@ const App: React.FC = () => {
       const d = new Date(t.date);
       return t.type === type && d >= startDate && d <= now;
     });
-    const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+    const categories = type === 'expense' ? effectiveExpenseCategories : effectiveIncomeCategories;
 
     const categoryTotals = categories.map((cat, index) => {
       const total = relevantTransactions
@@ -1182,7 +1236,7 @@ const App: React.FC = () => {
           >
             🏷️ Todas
           </button>
-          {(typeFilter === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map(cat => (
+          {(typeFilter === 'income' ? effectiveIncomeCategories : effectiveExpenseCategories).map(cat => (
             <button
               key={cat.name}
               onClick={() => setCategoryFilter(cat.name)}
@@ -1228,7 +1282,7 @@ const App: React.FC = () => {
                     <div className={`w-12 h-12 flex-shrink-0 rounded-2xl flex items-center justify-center text-xl shadow-inner ${
                       t.type === 'income' ? 'bg-green-50 dark:bg-green-900/30' : 'bg-red-50 dark:bg-red-900/30'
                     }`}>
-                      {(t.type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).find(c => c.name === t.category)?.icon || '💰'}
+                      {(t.type === 'expense' ? effectiveExpenseCategories : effectiveIncomeCategories).find(c => c.name === t.category)?.icon || '💰'}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{t.description}</p>
@@ -1383,15 +1437,6 @@ const App: React.FC = () => {
           <p className="text-purple-100 dark:text-purple-200 text-sm font-semibold opacity-80">
             {balanceMode === 'couple' ? 'Saldo do casal' : 'Saldo total'}
           </p>
-          {partner?.id && (
-            <button
-              onClick={() => setBalanceMode(prev => prev === 'individual' ? 'couple' : 'individual')}
-              className="flex items-center gap-1.5 bg-white/15 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider active:scale-95 transition-all border border-white/10"
-            >
-              {balanceMode === 'couple' ? <Users size={12} /> : <UserIcon size={12} />}
-              {balanceMode === 'couple' ? 'Casal' : 'Individual'}
-            </button>
-          )}
         </div>
 
         <div className="flex items-end gap-2">
@@ -1449,6 +1494,32 @@ const App: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Seletor Individual / Casal */}
+      {partner?.id && (
+        <div className="bg-white dark:bg-gray-800 rounded-[2rem] p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex gap-2">
+          <button
+            onClick={() => setBalanceMode('individual')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
+              balanceMode === 'individual'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <UserIcon size={16} /> Individual
+          </button>
+          <button
+            onClick={() => setBalanceMode('couple')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all active:scale-95 ${
+              balanceMode === 'couple'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 dark:shadow-purple-900/30'
+                : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Users size={16} /> Casal
+          </button>
+        </div>
+      )}
 
       {/* Gastos por Método de Pagamento */}
       {dashData.expense > 0 && (
@@ -1724,7 +1795,7 @@ const App: React.FC = () => {
                   aria-label="Categoria do investimento"
                   className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-4 px-5 font-bold focus:ring-2 focus:ring-yellow-500 outline-none appearance-none text-gray-900 dark:text-white"
                 >
-                  {INVESTMENT_CATEGORIES.map((c) => (
+                  {effectiveInvestmentCategories.map((c) => (
                     <option key={c.name} value={c.name}>
                       {c.icon} {c.name}
                     </option>
@@ -1793,7 +1864,7 @@ const App: React.FC = () => {
     }
 
     // Formulário de Transação (Gasto ou Ganho)
-    const categories = transactionTypeSelected === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+    const categories = transactionTypeSelected === 'expense' ? effectiveExpenseCategories : effectiveIncomeCategories;
     const typeLabel = transactionTypeSelected === 'expense' ? 'Gasto' : 'Ganho';
     const typeColor = transactionTypeSelected === 'expense' ? 'red' : 'green';
 
@@ -1967,14 +2038,14 @@ const App: React.FC = () => {
                     <img src={user.avatar} className="w-4 h-4 rounded-full" />
                     <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase">{user.name.split(' ')[0]}</p>
                   </div>
-                  <p className="text-base font-black text-gray-700 dark:text-gray-300">R$ {(goal.contributions['user_1'] || 0).toLocaleString()}</p>
+                  <p className="text-base font-black text-gray-700 dark:text-gray-300">R$ {(goal.contributions[user.id] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="bg-gray-50/50 dark:bg-gray-700/50 rounded-2xl p-4 border border-gray-100 dark:border-gray-600">
                   <div className="flex items-center gap-2 mb-1">
                     <img src={partner.avatar} className="w-4 h-4 rounded-full" />
                     <p className="text-[10px] text-gray-400 dark:text-gray-500 font-black uppercase">{partner.name.split(' ')[0]}</p>
                   </div>
-                  <p className="text-base font-black text-gray-700 dark:text-gray-300">R$ {(goal.contributions['user_2'] || 0).toLocaleString()}</p>
+                  <p className="text-base font-black text-gray-700 dark:text-gray-300">R$ {(goal.contributions[partner.id] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
 
@@ -2050,6 +2121,89 @@ const App: React.FC = () => {
                </div>
             </button>
          </div>
+      </div>
+
+      {/* Categorias Customizadas */}
+      <div className="bg-white dark:bg-gray-800 rounded-[2.5rem] p-6 shadow-sm border border-gray-100 dark:border-gray-700 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-purple-50 dark:bg-purple-900/30 p-3 rounded-2xl">
+            <span className="text-xl">🏷️</span>
+          </div>
+          <div>
+            <h3 className="font-black text-gray-800 dark:text-white text-lg">Minhas Categorias</h3>
+            <p className="text-xs text-gray-400 dark:text-gray-500 font-semibold">Categorias padrão + suas personalizadas</p>
+          </div>
+        </div>
+
+        {/* Formulário nova categoria */}
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-2xl p-4 space-y-3">
+          <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest">Adicionar categoria</p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newCategoryIcon}
+              onChange={e => setNewCategoryIcon(e.target.value)}
+              placeholder="😀"
+              maxLength={2}
+              className="w-14 bg-white dark:bg-gray-600 border-0 rounded-xl py-2.5 px-3 text-center text-lg font-bold focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
+            />
+            <input
+              type="text"
+              value={newCategoryName}
+              onChange={e => setNewCategoryName(e.target.value)}
+              placeholder="Nome da categoria"
+              className="flex-1 bg-white dark:bg-gray-600 border-0 rounded-xl py-2.5 px-3 text-sm font-bold focus:ring-2 focus:ring-purple-500 outline-none text-gray-900 dark:text-white"
+            />
+          </div>
+          <div className="flex gap-2">
+            {(['expense', 'income', 'investment'] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setNewCategoryType(t)}
+                className={`flex-1 py-2 rounded-xl text-xs font-black transition-all ${
+                  newCategoryType === t
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white dark:bg-gray-600 text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {t === 'expense' ? '📉 Gasto' : t === 'income' ? '📈 Ganho' : '💰 Invest.'}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={handleAddCustomCategory}
+            disabled={!newCategoryName.trim()}
+            className="w-full bg-purple-600 text-white font-black py-3 rounded-xl text-sm disabled:opacity-50 active:scale-95 transition-all"
+          >
+            + Adicionar
+          </button>
+        </div>
+
+        {/* Categorias customizadas existentes */}
+        {(['expense', 'income', 'investment'] as const).map(type => {
+          const custom = user.customCategories?.[type] || [];
+          if (custom.length === 0) return null;
+          const labels = { expense: 'Gastos', income: 'Ganhos', investment: 'Investimentos' };
+          return (
+            <div key={type}>
+              <p className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-2">{labels[type]} personalizados</p>
+              <div className="flex flex-wrap gap-2">
+                {custom.map((cat: { name: string; icon: string }) => (
+                  <div key={cat.name} className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-3 py-1.5 rounded-xl text-xs font-bold">
+                    <span>{cat.icon}</span>
+                    <span>{cat.name}</span>
+                    <button
+                      onClick={() => handleRemoveCustomCategory(type, cat.name)}
+                      className="ml-1 text-purple-400 hover:text-red-500 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {user.partnerId && partner?.id ? (
@@ -2923,7 +3077,7 @@ const App: React.FC = () => {
                   defaultValue={transactionToEdit.category}
                   className="w-full bg-gray-50 dark:bg-gray-700 border-0 rounded-2xl py-5 px-6 font-bold outline-none focus:ring-2 focus:ring-purple-500 text-gray-900 dark:text-white appearance-none"
                 >
-                  {(editType === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).map(c => (
+                  {(editType === 'expense' ? effectiveExpenseCategories : effectiveIncomeCategories).map(c => (
                     <option key={c.name} value={c.name}>{c.icon} {c.name}</option>
                   ))}
                 </select>
@@ -3152,7 +3306,7 @@ const App: React.FC = () => {
                         totalAmount: 0,
                         totalQuantity: 0,
                         count: 0,
-                        icon: INVESTMENT_CATEGORIES.find(c => c.name === inv.category)?.icon || '💰',
+                        icon: effectiveInvestmentCategories.find(c => c.name === inv.category)?.icon || '💰',
                       };
                     }
                     acc[inv.description].totalAmount += inv.amount;

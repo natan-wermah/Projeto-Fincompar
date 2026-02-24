@@ -1,15 +1,7 @@
 
-// Categorias de gastos (expenses)
-export type ExpenseCategory = 'Alimentação' | 'Moradia' | 'Lazer' | 'Transporte' | 'Saúde' | 'Educação' | 'Outros';
-
-// Categorias de ganhos (income)
-export type IncomeCategory = 'Trabalho Principal' | 'Clientes' | 'Freelas' | 'Outros';
-
-// Categoria pode ser qualquer uma das duas
-export type Category = ExpenseCategory | IncomeCategory;
-
-// Categorias de investimentos
-export type InvestmentCategory = 'Ações' | 'FII' | 'ETF' | 'Cripto' | 'Renda Fixa' | 'Tesouro Direto' | 'CDB' | 'LCI/LCA' | 'Fundos' | 'Outros';
+// Categorias são strings (padrão + customizadas pelo usuário)
+export type Category = string;
+export type InvestmentCategory = string;
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
@@ -56,12 +48,20 @@ export interface Investment {
   createdAt?: string; // ISO timestamp
 }
 
+export interface CustomCategoryGroup {
+  expense: { name: string; icon: string }[];
+  income: { name: string; icon: string }[];
+  investment: { name: string; icon: string }[];
+}
+
 export interface User {
   id: string;
   name: string;
   email: string;
   partnerId?: string | null;
   avatar: string;
+  customCategories?: CustomCategoryGroup;
+  pluggyItemId?: string | null;
 }
 
 export type InvitationStatus = 'pending' | 'accepted' | 'rejected';

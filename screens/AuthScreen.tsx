@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Mail, Lock, User, Heart, ArrowRight, ChevronLeft, Sparkles } from 'lucide-react';
+import { Mail, Lock, User, Heart, ArrowRight, Sparkles } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { Notification as NotificationType } from '../types';
 import { NotificationContainer } from '../components/Notification';
@@ -15,7 +15,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [partnerEmail, setPartnerEmail] = useState('');
+
   const [notifications, setNotifications] = useState<NotificationType[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -79,10 +79,7 @@ const handleSubmit = async (e: React.FormEvent) => {
         email,
         password,
         options: {
-          data: {
-            name,
-            partner_email: partnerEmail || null,
-          },
+          data: { name },
         },
       });
 
@@ -205,22 +202,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
             </div>
 
-            {!isLogin && (
-              <div className="relative">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" aria-hidden="true">
-                  <Heart size={18} />
-                </span>
-                <input
-                  type="email"
-                  value={partnerEmail}
-                  onChange={(e) => setPartnerEmail(e.target.value)}
-                  placeholder="E-mail do Parceiro(a) (opcional)"
-                  aria-label="E-mail do parceiro (opcional)"
-                  disabled={isLoading}
-                  className="w-full bg-gray-100 dark:bg-gray-700/50 border-0 rounded-2xl py-4 pl-14 pr-5 font-bold focus:ring-2 focus:ring-purple-500 outline-none transition-all italic text-sm disabled:opacity-50 disabled:cursor-not-allowed text-gray-900 dark:text-white"
-                />
-              </div>
-            )}
 
             {isLogin && (
               <div className="text-right">
