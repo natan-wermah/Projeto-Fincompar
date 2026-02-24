@@ -610,6 +610,26 @@ const App: React.FC = () => {
     }
   };
 
+  const handleToggleAllShared = async (makeShared: boolean) => {
+    if (!user?.id) return;
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({ shared: makeShared })
+        .eq('payer_id', user.id);
+      if (error) throw error;
+      setTransactions(prev => prev.map(t => ({ ...t, shared: makeShared })));
+      addNotification(
+        makeShared
+          ? `Todas as transações compartilhadas com parceiro(a)!`
+          : `Todas as transações tornadas individuais!`,
+        'success'
+      );
+    } catch {
+      addNotification('Erro ao atualizar transações', 'error');
+    }
+  };
+
   const handleDeleteTransaction = async () => {
     if (!transactionToDelete) return;
     try {
@@ -2212,13 +2232,28 @@ const App: React.FC = () => {
             <h3 className="font-black text-xl flex items-center gap-2"><Heart size={22} fill="white" /> Meu amor</h3>
             <Settings size={20} className="opacity-60" onClick={() => setIsEditingPartner(true)} />
           </div>
-          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20">
+          <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/20 mb-4">
             <img src={partner.avatar} className="w-14 h-14 rounded-2xl border-2 border-white/30 object-cover shadow-inner" />
             <div className="flex-1">
               <p className="font-black text-lg">{partner.name}</p>
               <p className="text-xs text-green-100 font-semibold opacity-80 italic">{partner.email}</p>
             </div>
             <div className="bg-white/20 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-tighter shadow-sm border border-white/10">Sincronizado</div>
+          </div>
+          {/* Botões de compartilhamento em massa */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => handleToggleAllShared(true)}
+              className="bg-white/15 border border-white/20 backdrop-blur-md py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              <Share2 size={14} /> Compartilhar tudo
+            </button>
+            <button
+              onClick={() => handleToggleAllShared(false)}
+              className="bg-white/10 border border-white/10 backdrop-blur-md py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-wider active:scale-95 transition-all flex items-center justify-center gap-2 opacity-70"
+            >
+              <UserIcon size={14} /> Tornar individual
+            </button>
           </div>
         </div>
       ) : (
